@@ -1,0 +1,40 @@
+{
+  "testPhase": "phase2",
+  "status": "fixed",
+  "testId": "STATE-PHASE2-001",
+  "description": "Validation of fixed state transitions in phase 2",
+  "timestamp": "2026-03-04T12:00:00Z",
+  "environment": {
+    "os": "linux",
+    "version": "1.4.2",
+    "runtime": "nodejs-18"
+  },
+  "stateMachine": {
+    "initialState": "idle",
+    "transitions": [
+      {"from": "idle", "to": "processing", "event": "start"},
+      {"from": "processing", "to": "done", "event": "complete"},
+      {"from": "done", "to": "archived", "event": "archive"}
+    ]
+  },
+  "tests": [
+    {
+      "name": "idle-to-processing",
+      "input": {"event": "start"},
+      "expected": {"state": "processing"},
+      "actual": {"state": "processing"},
+      "pass": true,
+      "notes": "Transition executes as expected"
+    },
+    {
+      "name": "processing-to-done",
+      "input": {"event": "complete"},
+      "expected": {"state": "done"},
+      "actual": {"state": "done"},
+      "pass": true
+    }
+  ],
+  "fixed": true,
+  "author": "qa-engineer",
+  "comments": "Phase 2 fixed state tests verified"
+}

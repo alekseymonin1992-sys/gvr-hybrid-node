@@ -1,0 +1,52 @@
+{
+  "chain": [
+    {
+      "index": 0,
+      "previous_hash": "0",
+      "timestamp": 1772624253141,
+      "transactions": [],
+      "nonce": 260,
+      "difficulty": 2,
+      "energy_proof": null,
+      "reward": 0,
+      "hash": "00d39f63bf8626d7afc0bcc7c1d6ae36646845bd854ce06faa34df5cb4f6ba96"
+    },
+    {
+      "index": 1,
+      "previous_hash": "00d39f63bf8626d7afc0bcc7c1d6ae36646845bd854ce06faa34df5cb4f6ba96",
+      "timestamp": 1772624254141,
+      "transactions": [],
+      "nonce": 79,
+      "difficulty": 3,
+      "energy_proof": null,
+      "reward": 500,
+      "hash": "000eca69afd64978961b3e673f0af6a4ca7fda138dbd1a1bc90318b924585866"
+    },
+    {
+      "index": 2,
+      "previous_hash": "000eca69afd64978961b3e673f0af6a4ca7fda138dbd1a1bc90318b924585866",
+      "timestamp": 1772624255141,
+      "transactions": [],
+      "nonce": 4807,
+      "difficulty": 3,
+      "energy_proof": null,
+      "reward": 500,
+      "hash": "000db3d69f7770c0bc998f9ec816ec2cfbf63c9a52230399fc7af8039c1c19a4"
+    },
+    {
+      "index": 3,
+      "previous_hash": "000db3d69f7770c0bc998f9ec816ec2cfbf63c9a52230399fc7af8039c1c19a4",
+      "timestamp": 1772624256141,
+      "transactions": [],
+      "nonce": 3909,
+      "difficulty": 3,
+      "energy_proof": null,
+      "reward": 0,
+      "hash": "000a9f3cec8075fd23e8556f88d1e0e6a1db4c3366da23232ca395cdf1c91ab9"
+    }
+  ],
+  "difficulty": 3,
+  "total_supply": 1000,
+  "active_ai_pubkey": null,
+  "producer_state": {}
+}

@@ -1,4 +1,5 @@
 # GVR Hybrid Node
+[English README](README.en.md)
 
 GVR — экспериментальная гибридная криптовалюта на Rust с трёхфазной экономикой:
 

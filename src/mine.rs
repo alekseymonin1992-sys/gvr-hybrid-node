@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use k256::ecdsa::signature::Signer;
@@ -7,24 +8,24 @@ use crate::block::Block;
 use crate::blockchain::Blockchain;
 use crate::energy::EnergyProof;
 use crate::mempool::Mempool;
+use crate::transaction::Transaction;
 
 /// Dev-майнер: строит новый блок,
-/// - включает транзакции из mempool (до max_txs),
+/// - получает уже выбранные транзакции,
 /// - добавляет EnergyProof, если есть ключ.
 pub fn mine_block(
     chain: &Blockchain,
-    mempool: &Mempool,
+    selected_txs: Vec<Transaction>,
     sk_opt: Option<&SigningKey>,
 ) -> Block {
     let index = chain.chain.len() as u64;
     let previous_hash = chain.last_hash();
     let difficulty = chain.difficulty;
 
-    // включаем транзакции из mempool
-    let max_txs = 100usize;
-    let transactions = mempool.select_for_block(max_txs);
+    let transactions = selected_txs;
 
     let energy_proof = sk_opt.and_then(|sk| {
+        // Если на ноде не настроен active_ai_pubkey — не делаем EnergyProof.
         if chain.active_ai_pubkey.is_none() {
             return None;
         }
@@ -62,6 +63,30 @@ pub fn mine_block(
         energy_proof,
         reward,
     )
+}
+
+/// Потокобезопасная версия:
+/// - под локами берёт срез состояния блокчейна и выбирает транзакции из mempool,
+/// - затем майнит блок без дальнейших локов.
+pub fn mine_block_threadsafe(
+    chain_arc: &Arc<Mutex<Blockchain>>,
+    mempool_arc: &Arc<Mutex<Mempool>>,
+    sk_opt: Option<&SigningKey>,
+) -> Block {
+    // 1. Под локами берём ссылку на chain и выбираем tx из mempool
+    let (chain_snapshot, selected_txs) = {
+        let chain_guard = chain_arc.lock().unwrap();
+        let mempool_guard = mempool_arc.lock().unwrap();
+
+        let max_txs = 100usize;
+        let txs = mempool_guard.select_for_block(max_txs);
+
+        // Клонируем только сам Blockchain (он у тебя Clone) и список tx.
+        (chain_guard.clone(), txs)
+    };
+
+    // 2. Майним блок на копии chain и уже выбранных транзакциях
+    mine_block(&chain_snapshot, selected_txs, sk_opt)
 }
 
 fn next_sequence_for_producer(chain: &Blockchain, producer_id: &str) -> u64 {

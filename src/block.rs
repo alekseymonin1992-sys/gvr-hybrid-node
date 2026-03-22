@@ -86,10 +86,10 @@ impl Block {
                     hasher.update(hex::encode(signature));
                 }
                 Transaction::Signed(st) => {
-                    // Включаем основные поля подписанного перевода в хэш
                     hasher.update(&st.from);
                     hasher.update(&st.to);
                     hasher.update(st.amount.to_string());
+                    // fee не включаем в хэш блока, можно добавить позже
                     hasher.update(hex::encode(&st.pubkey_sec1));
                     hasher.update(hex::encode(&st.signature));
                 }
@@ -106,12 +106,10 @@ impl Block {
             hasher.update("no_proof");
         }
 
-        // reward НЕ включаем в хэш
         hex::encode(hasher.finalize())
     }
 
     pub fn genesis() -> Self {
-        // Детерминированный genesis (как ты уже делал):
         let index = 0u64;
         let previous_hash = "0".to_string();
         let timestamp = 1_700_000_000_000u128; // фикс

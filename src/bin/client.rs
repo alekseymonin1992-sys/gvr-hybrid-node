@@ -34,6 +34,10 @@ enum Commands {
 
         #[arg(long)]
         amount: u64,
+
+        /// Комиссия за транзакцию (уходит майнеру)
+        #[arg(long, default_value_t = 0)]
+        fee: u64,
     },
 
     /// Отправить подписанную транзакцию через RPC /tx с явным nonce (без /status)
@@ -52,6 +56,10 @@ enum Commands {
 
         #[arg(long)]
         nonce: u64,
+
+        /// Комиссия за транзакцию
+        #[arg(long, default_value_t = 0)]
+        fee: u64,
     },
 
     /// Показать список пиров через RPC /peers
@@ -90,16 +98,10 @@ struct StatusResponse {
     height: u64,
     tip: String,
     alice_nonce: u64,
-
-    #[allow(dead_code)]
     difficulty: u32,
-    #[allow(dead_code)]
     total_supply: u64,
-    #[allow(dead_code)]
     alice_balance: u64,
-    #[allow(dead_code)]
     bob_balance: u64,
-    #[allow(dead_code)]
     phase: String,
 }
 
@@ -112,21 +114,19 @@ struct SignedTransferDto {
     nonce: u64,
     pubkey_sec1: Vec<u8>,
     signature: Vec<u8>,
+    fee: u64,
 }
 
-/// DTO для /peers
 #[derive(Debug, Deserialize)]
 struct PeersResponse {
     peers: Vec<PeerInfo>,
 }
 
+// Оставляем только то, что реально выводим (addr),
+// чтобы не было предупреждений про неиспользуемые поля.
 #[derive(Debug, Deserialize)]
 struct PeerInfo {
     addr: String,
-    last_error_ts: u128,
-    error_count: u32,
-    banned_until: u128,
-    last_contact_ts: u128,
 }
 
 #[tokio::main]
@@ -136,15 +136,29 @@ async fn main() {
     let http_client = Client::new();
 
     let res = match cli.command {
-        Commands::SendTx { rpc, from, to, amount } => {
-            cmd_send_tx(&http_client, &rpc, &from, &to, amount).await
-        }
-        Commands::SendTxRaw { rpc, from, to, amount, nonce } => {
-            cmd_send_tx_raw(&http_client, &rpc, &from, &to, amount, nonce).await
+        Commands::SendTx {
+            rpc,
+            from,
+            to,
+            amount,
+            fee,
+        } => cmd_send_tx(&http_client, &rpc, &from, &to, amount, fee).await,
+        Commands::SendTxRaw {
+            rpc,
+            from,
+            to,
+            amount,
+            nonce,
+            fee,
+        } => {
+            cmd_send_tx_raw(&http_client, &rpc, &from, &to, amount, nonce, fee)
+                .await
         }
         Commands::Peers { rpc } => cmd_peers(&http_client, &rpc).await,
         Commands::Status { rpc } => cmd_status(&http_client, &rpc).await,
-        Commands::Balance { rpc, addr } => cmd_balance(&http_client, &rpc, &addr).await,
+        Commands::Balance { rpc, addr } => {
+            cmd_balance(&http_client, &rpc, &addr).await
+        }
         Commands::Nonce { rpc, addr } => cmd_nonce(&http_client, &rpc, &addr).await,
     };
 
@@ -160,6 +174,7 @@ async fn cmd_send_tx(
     from: &str,
     to: &str,
     amount: u64,
+    fee: u64,
 ) -> Result<(), String> {
     let sk = load_dev_key().map_err(|e| format!("failed to load dev key: {}", e))?;
 
@@ -182,11 +197,11 @@ async fn cmd_send_tx(
     };
 
     println!(
-        "Using nonce={} for from={} (height={}, tip={})",
-        nonce, from, status.height, status.tip
+        "Using nonce={} for from={} (height={}, tip={}), fee={}",
+        nonce, from, status.height, status.tip, fee
     );
 
-    let st = sign_transfer(&sk, from, to, amount, nonce);
+    let st = sign_transfer(&sk, from, to, amount, fee, nonce);
     let dto = SignedTransferDto {
         from: st.from.clone(),
         to: st.to.clone(),
@@ -194,6 +209,7 @@ async fn cmd_send_tx(
         nonce: st.nonce,
         pubkey_sec1: st.pubkey_sec1.clone(),
         signature: st.signature.clone(),
+        fee: st.fee,
     };
 
     let tx_url = format!("{}/tx", base_url);
@@ -225,17 +241,18 @@ async fn cmd_send_tx_raw(
     to: &str,
     amount: u64,
     nonce: u64,
+    fee: u64,
 ) -> Result<(), String> {
     let sk = load_dev_key().map_err(|e| format!("failed to load dev key: {}", e))?;
 
     let base_url = format!("http://{}", rpc_addr);
 
     println!(
-        "Sending raw tx: from={} to={} amount={} nonce={} (without /status)",
-        from, to, amount, nonce
+        "Sending raw tx: from={} to={} amount={} nonce={} fee={} (without /status)",
+        from, to, amount, nonce, fee
     );
 
-    let st = sign_transfer(&sk, from, to, amount, nonce);
+    let st = sign_transfer(&sk, from, to, amount, fee, nonce);
     let dto = SignedTransferDto {
         from: st.from.clone(),
         to: st.to.clone(),
@@ -243,6 +260,7 @@ async fn cmd_send_tx_raw(
         nonce: st.nonce,
         pubkey_sec1: st.pubkey_sec1.clone(),
         signature: st.signature.clone(),
+        fee: st.fee,
     };
 
     let tx_url = format!("{}/tx", base_url);
@@ -268,9 +286,7 @@ async fn cmd_send_tx_raw(
 }
 
 async fn cmd_peers(client: &Client, rpc_addr: &str) -> Result<(), String> {
-    let base_url = format!("http://{}", rpc_addr);
-    let url = format!("{}/peers", base_url);
-
+    let url = format!("http://{}/peers", rpc_addr);
     let resp = client
         .get(&url)
         .send()
@@ -278,31 +294,22 @@ async fn cmd_peers(client: &Client, rpc_addr: &str) -> Result<(), String> {
         .map_err(|e| format!("peers request error: {}", e))?;
 
     let status = resp.status();
-    let body_text = resp.text().await.unwrap_or_default();
+    let body = resp.text().await.unwrap_or_default();
 
     if !status.is_success() {
         return Err(format!(
             "peers request failed: status={} body={}",
-            status, body_text
+            status, body
         ));
     }
 
-    let peers: PeersResponse =
-        serde_json::from_str(&body_text).map_err(|e| format!("peers json parse error: {}", e))?;
+    let body: PeersResponse =
+        serde_json::from_str(&body).map_err(|e| format!("peers json parse error: {}", e))?;
 
-    if peers.peers.is_empty() {
-        println!("No peers known by this node.");
-        return Ok(());
+    println!("Peers ({}):", body.peers.len());
+    for p in body.peers {
+        println!("  {}", p.addr);
     }
-
-    println!("Peers:");
-    for p in peers.peers {
-        println!(
-            "  {} | errors={} last_error_ts={} banned_until={} last_contact_ts={}",
-            p.addr, p.error_count, p.last_error_ts, p.banned_until, p.last_contact_ts
-        );
-    }
-
     Ok(())
 }
 
@@ -313,32 +320,99 @@ async fn cmd_status(client: &Client, rpc_addr: &str) -> Result<(), String> {
         .send()
         .await
         .map_err(|e| format!("status request error: {}", e))?;
-    let text = resp.text().await.unwrap_or_default();
-    println!("{}", text);
+
+    let status_code = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+
+    if !status_code.is_success() {
+        return Err(format!(
+            "status request failed: status={} body={}",
+            status_code, body_text
+        ));
+    }
+
+    let st: StatusResponse = serde_json::from_str(&body_text)
+        .map_err(|e| format!("status json parse error: {}", e))?;
+
+    println!("Height       : {}", st.height);
+    println!("Tip hash     : {}", st.tip);
+    println!("Difficulty   : {}", st.difficulty);
+    println!("Total supply : {}", st.total_supply);
+    println!("Phase        : {}", st.phase);
+    println!("alice balance: {}", st.alice_balance);
+    println!("bob balance  : {}", st.bob_balance);
+    println!("alice nonce  : {}", st.alice_nonce);
+
     Ok(())
 }
 
-async fn cmd_balance(client: &Client, rpc_addr: &str, addr: &str) -> Result<(), String> {
+async fn cmd_balance(
+    client: &Client,
+    rpc_addr: &str,
+    addr: &str,
+) -> Result<(), String> {
     let url = format!("http://{}/balance?addr={}", rpc_addr, addr);
     let resp = client
         .get(&url)
         .send()
         .await
         .map_err(|e| format!("balance request error: {}", e))?;
-    let text = resp.text().await.unwrap_or_default();
-    println!("{}", text);
+
+    let status_code = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+
+    if !status_code.is_success() {
+        return Err(format!(
+            "balance request failed: status={} body={}",
+            status_code, body_text
+        ));
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct BalanceResp {
+        addr: String,
+        balance: u64,
+    }
+
+    let b: BalanceResp = serde_json::from_str(&body_text)
+        .map_err(|e| format!("balance json parse error: {}", e))?;
+
+    println!("Balance of {} = {}", b.addr, b.balance);
     Ok(())
 }
 
-async fn cmd_nonce(client: &Client, rpc_addr: &str, addr: &str) -> Result<(), String> {
+async fn cmd_nonce(
+    client: &Client,
+    rpc_addr: &str,
+    addr: &str,
+) -> Result<(), String> {
     let url = format!("http://{}/nonce?addr={}", rpc_addr, addr);
     let resp = client
         .get(&url)
         .send()
         .await
         .map_err(|e| format!("nonce request error: {}", e))?;
-    let text = resp.text().await.unwrap_or_default();
-    println!("{}", text);
+
+    let status_code = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+
+    if !status_code.is_success() {
+        return Err(format!(
+            "nonce request failed: status={} body={}",
+            status_code, body_text
+        ));
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct NonceResp {
+        addr: String,
+        nonce: u64,
+    }
+
+    let n: NonceResp = serde_json::from_str(&body_text)
+        .map_err(|e| format!("nonce json parse error: {}", e))?;
+
+    println!("Nonce of {} = {}", n.addr, n.nonce);
     Ok(())
 }
 

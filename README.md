@@ -1,55 +1,29 @@
-# GVR v2 — гибридная криптовалюта (PoW + EnergyProof)
+# GVR Hybrid Node
 
-GVR — экспериментальная гибридная криптовалюта:
+GVR — экспериментальная гибридная криптовалюта на Rust с трёхфазной экономикой:
 
-- **PoW + EnergyProof + AI‑оценка** (гибридная эмиссия по фазам);
-- **аккаунтная модель** (балансы + nonce), удобная для смарт‑логики;
-- **P2P‑сеть** в духе биткоина:
-  - постоянные TCP‑соединения,
-  - hello с подписью p2p‑ключом,
-  - chainwork и авто‑сложность,
-  - инвентарь блоков и транзакций;
-- **RPC на axum** и **CLI‑клиент** (`client`), похожий на `bitcoin-cli`.
+- **Phase1** — классический PoW (фиксированная награда).
+- **Phase2** — гибрид PoW + EnergyProof (AI-подтверждённая энергия).
+- **Phase3** — "зелёный хвост": основная награда за энергию, маленький PoW‑хвост.
 
-Проект/каталог: `gvr_v2`  
-Основной бинарь ноды: `gvr_hybrid_node`  
-CLI‑клиент: `client`  
+Проект включает:
 
----
+- полноценную ноду (`gvr_hybrid_node`),
+- RPC API (`axum`),
+- P2P-сеть,
+- CLI-клиент (`client`),
+- CLI-кошелёк (`wallet`),
+- сборку для Windows в виде папки `dist` с `.exe` и `.bat`.
 
-## 1. Архитектура (коротко)
-
-Основные модули:
-
-- `block.rs` — структура блока, хэш, genesis.
-- `blockchain.rs` — хранение цепочки, chainwork, reorg, авто‑сложность, интеграция эмиссии и state.
-- `state.rs` — аккаунтное состояние: балансы + nonce, применение транзакций.
-- `transaction.rs` + `accounts.rs` — типы транзакций (в т.ч. `Signed`), подписи и проверка подписи.
-- `mempool.rs` — mempool с проверкой подписи для `Transaction::Signed`.
-- `mine.rs` — майнинг:
-  - выбирает транзакции из mempool,
-  - создаёт блок,
-  - формирует `EnergyProof` и подписывает его AI‑ключом.
-- `emission.rs` + `energy.rs` + `constants.rs` — гибридная эмиссия:
-  - Phase1/Phase2/Phase3;
-  - награда зависит от kWh и ai_score в Phase2/3.
-- `p2p.rs` — P2P:
-  - Hello с подписью p2p‑ключом,
-  - sync по локаторам (`GetBlocksFromLocators`),
-  - `InvTx`/`InvBlock`/`MempoolInv`,
-  - banlist и backoff.
-- `rpc.rs` — HTTP‑RPC на базе axum:
-  - `/status`, `/tx`, `/peers`, `/balance`, `/nonce`, `/sync`, `/ban`, `/unban`.
-- `src/bin/client.rs` — CLI‑клиент (`client`) для RPC.
+Полное описание экономики: см. [ECONOMY.md](ECONOMY.md).
 
 ---
 
-## 2. Сборка
+## Сборка из исходников
 
-Требуется установленный Rust (через `rustup`).
+Требуется установленный Rust (stable) и Cargo.
 
-В PowerShell (Windows):
-
-```powershell
-cd C:\Users\Пользователь\gvr_v2
-cargo build
+```bash
+git clone <репозиторий>
+cd gvr_v2
+cargo build --release

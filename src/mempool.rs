@@ -7,7 +7,7 @@ use crate::transaction::Transaction;
 pub struct Mempool {
     /// tx_hash (hex) -> Transaction
     pub txs: HashMap<String, Transaction>,
-    /// Порядок добавления (грубый порядок, без приоритета по fee и т.п.)
+    /// Порядок добавления
     pub order: Vec<String>,
 }
 
@@ -20,14 +20,14 @@ impl Mempool {
     }
 
     /// Добавить транзакцию в mempool. Возвращает её хеш (hex).
-    /// Signed-транзакции проверяем по подписи, остальные — принимаем как есть (dev-режим).
+    /// Signed-транзакции проверяем по подписи и минимальной комиссии,
+    /// остальные — принимаем как есть.
     pub fn add_tx(&mut self, tx: Transaction) -> String {
         match &tx {
             Transaction::Signed(st) => {
+                // 1) проверяем подпись
                 match st.verify() {
-                    Ok(true) => {
-                        // ок, пропускаем
-                    }
+                    Ok(true) => {}
                     Ok(false) => {
                         println!("Mempool: reject Signed tx — signature invalid");
                         return String::new();
@@ -37,9 +37,19 @@ impl Mempool {
                         return String::new();
                     }
                 }
+
+                // 2) проверяем минимальную комиссию
+                if st.fee < crate::constants::MIN_SIGNED_FEE {
+                    println!(
+                        "Mempool: reject Signed tx — fee {} below MIN_SIGNED_FEE={}",
+                        st.fee,
+                        crate::constants::MIN_SIGNED_FEE
+                    );
+                    return String::new();
+                }
             }
             _ => {
-                // Transfer / RotateAIKey — пока без подписи, оставляем
+                // Transfer / RotateAIKey — пока без подписи и без fee
             }
         }
 
@@ -66,13 +76,49 @@ impl Mempool {
     }
 
     /// Выбрать до max_count транзакций для включения в новый блок.
+    /// Приоритет: сначала Signed с большим fee, затем остальные в порядке добавления.
     pub fn select_for_block(&self, max_count: usize) -> Vec<Transaction> {
-        let mut out = Vec::new();
-        for h in self.order.iter().take(max_count) {
+        let mut signed: Vec<(u64, String)> = Vec::new();
+        let mut other: Vec<String> = Vec::new();
+
+        for h in &self.order {
             if let Some(tx) = self.txs.get(h) {
+                match tx {
+                    Transaction::Signed(st) => {
+                        signed.push((st.fee, h.clone()));
+                    }
+                    _ => {
+                        other.push(h.clone());
+                    }
+                }
+            }
+        }
+
+        // сортируем Signed по fee (по убыванию)
+        signed.sort_by(|a, b| b.0.cmp(&a.0));
+
+        let mut out = Vec::new();
+
+        for (_fee, h) in signed.into_iter() {
+            if out.len() >= max_count {
+                break;
+            }
+            if let Some(tx) = self.txs.get(&h) {
                 out.push(tx.clone());
             }
         }
+
+        if out.len() < max_count {
+            for h in other {
+                if out.len() >= max_count {
+                    break;
+                }
+                if let Some(tx) = self.txs.get(&h) {
+                    out.push(tx.clone());
+                }
+            }
+        }
+
         out
     }
 }

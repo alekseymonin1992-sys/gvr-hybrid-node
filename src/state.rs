@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
+use crate::constants::MIN_SIGNED_FEE;
 
-/// Адрес, который в dev-режиме получает награду за блок.
+/// Адрес по умолчанию для dev-режима (может быть переопределён через CLI).
 pub const DEV_COINBASE_ADDR: &str = "alice";
 
 /// Простое аккаунтное состояние: адрес -> баланс, адрес -> nonce.
@@ -84,6 +85,15 @@ impl State {
                 if st.amount == 0 {
                     return Err("zero-amount signed transfer".to_string());
                 }
+
+                // Минимальная комиссия на уровне протокола
+                if st.fee < MIN_SIGNED_FEE {
+                    return Err(format!(
+                        "fee below minimum: got={} min={}",
+                        st.fee, MIN_SIGNED_FEE
+                    ));
+                }
+
                 // проверяем nonce: ожидаемое значение должно совпасть
                 let expected_nonce = self.nonce_of(&st.from);
                 if st.nonce != expected_nonce {
@@ -92,9 +102,16 @@ impl State {
                         st.from, st.nonce, expected_nonce
                     ));
                 }
-                // списываем и зачисляем
-                self.debit(&st.from, st.amount)?;
+                // списываем amount + fee с отправителя
+                let total_debit = st.amount.saturating_add(st.fee);
+                self.debit(&st.from, total_debit)?;
+                // зачисляем amount получателю
                 self.credit(&st.to, st.amount);
+                // комиссия уходит на coinbase-адрес
+                if st.fee > 0 {
+                    let coinbase = self.coinbase.clone();
+                    self.credit(&coinbase, st.fee);
+                }
                 // увеличиваем nonce
                 self.bump_nonce(&st.from);
                 Ok(())

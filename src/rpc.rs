@@ -44,6 +44,7 @@ struct SignedTransferDto {
     nonce: u64,
     pubkey_sec1: Vec<u8>,
     signature: Vec<u8>,
+    fee: u64,
 }
 
 /// DTO для вывода одного пира через /peers.
@@ -69,8 +70,14 @@ struct StatusResponse {
     phase: String,
 }
 
+#[derive(Debug, Serialize)]
+struct P2pDebugInfo {
+    peers: Vec<PeerInfo>,
+    total_peers: usize,
+    banned_peers: usize,
+}
+
 /// Запуск HTTP RPC-сервера на axum.
-/// - bind_addr: например "127.0.0.1:8080"
 pub fn start_rpc(
     bind_addr: &str,
     blockchain: Arc<Mutex<Blockchain>>,
@@ -106,6 +113,7 @@ pub fn start_rpc(
                 .route("/unban", post(handle_unban))
                 .route("/balance", get(handle_balance))
                 .route("/nonce", get(handle_nonce))
+                .route("/p2p_debug", get(handle_p2p_debug))
                 .with_state(state);
 
             let addr: SocketAddr = match addr_s.parse() {
@@ -147,6 +155,7 @@ async fn handle_tx(
         from: dto.from,
         to: dto.to,
         amount: dto.amount,
+        fee: dto.fee,
         nonce: dto.nonce,
         pubkey_sec1: dto.pubkey_sec1,
         signature: dto.signature,
@@ -378,6 +387,25 @@ async fn handle_nonce(
         nonce,
     };
     (StatusCode::OK, Json(resp)).into_response()
+}
+
+/// GET /p2p_debug
+async fn handle_p2p_debug() -> Response {
+    let peer_infos = collect_peer_infos();
+    let total_peers = peer_infos.len();
+    let now = now_ms();
+    let banned_peers = peer_infos
+        .iter()
+        .filter(|p| p.banned_until > now)
+        .count();
+
+    let body = P2pDebugInfo {
+        peers: peer_infos,
+        total_peers,
+        banned_peers,
+    };
+
+    (StatusCode::OK, Json(body)).into_response()
 }
 
 /// Собрать список PeerInfo из глобального p2p::GLOBAL_PEER_STATES.

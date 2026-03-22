@@ -3,11 +3,18 @@ use crate::constants::{
     DIFFICULTY_ADJUST_INTERVAL, MAX_DIFFICULTY, MIN_DIFFICULTY, TARGET_BLOCK_TIME_SEC,
 };
 use crate::emission::{calculate_reward, EmissionConfig};
-use crate::state::{State, DEV_COINBASE_ADDR};
+use crate::state::State;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+
+/// Состояние производителя энергии
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProducerState {
+    pub last_seq: u64,
+    pub last_ts: u128,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Blockchain {
@@ -42,14 +49,9 @@ pub struct Blockchain {
     pub state: State,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProducerState {
-    pub last_seq: u64,
-    pub last_ts: u128,
-}
-
 impl Blockchain {
-    pub fn new_with_genesis(ai_pubkey: Option<Vec<u8>>) -> Self {
+    /// Создаём новую цепь с генезис‑блоком.
+    pub fn new_with_genesis(ai_pubkey: Option<Vec<u8>>, coinbase_addr: String) -> Self {
         let mut blocks_by_hash = HashMap::new();
         let mut chainwork_by_hash = HashMap::new();
         let children = HashMap::new();
@@ -61,13 +63,19 @@ impl Blockchain {
         chainwork_by_hash.insert(genesis_hash.clone(), work);
         blocks_by_hash.insert(genesis_hash.clone(), genesis.clone());
 
-        // В dev-режиме coinbase адрес = "alice"
-        let state = State::new(DEV_COINBASE_ADDR.to_string());
+        let mut state = State::new(coinbase_addr.clone());
+
+        // Если у генезиса есть reward — начислим его coinbase'у и учтём в total_supply
+        let mut total_supply = 0u64;
+        if genesis.reward > 0 {
+            state.credit(&coinbase_addr, genesis.reward);
+            total_supply = genesis.reward;
+        }
 
         Blockchain {
             chain: vec![genesis],
             difficulty: crate::constants::INITIAL_DIFFICULTY,
-            total_supply: 0,
+            total_supply,
             active_ai_pubkey: ai_pubkey,
             producer_state: HashMap::new(),
             blocks_by_hash,
@@ -78,6 +86,7 @@ impl Blockchain {
         }
     }
 
+    /// Хеш текущего tip'а.
     pub fn last_hash(&self) -> String {
         self.tip_hash.clone()
     }
@@ -114,10 +123,12 @@ impl Blockchain {
             return false;
         }
 
+        // Уже видели этот блок — считаем, что ок.
         if self.blocks_by_hash.contains_key(&block.hash) {
             return true;
         }
 
+        // Анти‑replay по EnergyProof (sequence/timestamp по producer_id)
         if let Some(ep) = &block.energy_proof {
             if let Some(ps) = self.producer_state.get(&ep.producer_id) {
                 if ep.timestamp <= ps.last_ts {
@@ -169,6 +180,7 @@ impl Blockchain {
             phase, self.total_supply, reward
         );
 
+        // Добавляем блок в "глобальный" граф
         let block_hash = block.hash.clone();
 
         self.blocks_by_hash.insert(block_hash.clone(), block.clone());
@@ -189,8 +201,8 @@ impl Blockchain {
             .get(&self.tip_hash)
             .unwrap_or(&0u128);
 
+        // Если новая ветка тяжелее — перестраиваем основную цепь до этого блока.
         if my_work > current_tip_work {
-            // Новый лучший tip по chainwork — пересобираем основную цепь
             if let Err(e) = self.rebuild_main_chain_to(&block_hash) {
                 println!("Reorg error: {}", e);
                 return false;
@@ -200,8 +212,9 @@ impl Blockchain {
         true
     }
 
-    /// Пересобираем основную цепь (chain, total_supply, producer_state, difficulty, state) до заданного tip.
+    /// Пересобираем основную цепь до заданного tip.
     fn rebuild_main_chain_to(&mut self, new_tip_hash: &str) -> Result<(), String> {
+        // Восстанавливаем путь от new_tip к genesis по previous_hash
         let mut path: Vec<String> = Vec::new();
         let mut cur = new_tip_hash.to_string();
 
@@ -223,14 +236,16 @@ impl Blockchain {
         let old_tip = self.tip_hash.clone();
         let old_height = self.chain.len();
 
+        // Сбрасываем основной view
         self.chain.clear();
         self.total_supply = 0;
         self.producer_state.clear();
 
-        // сбрасываем state от genesis: новый State с тем же coinbase
+        // Сбрасываем state, сохранив текущий coinbase адрес.
         let coinbase_addr = self.state.coinbase.clone();
         self.state = State::new(coinbase_addr);
 
+        // Проходим по всем блокам пути, восстанавливая state/total_supply/producer_state.
         for h in &path {
             let mut b = self
                 .blocks_by_hash
@@ -267,12 +282,12 @@ impl Blockchain {
             b.reward = reward;
             self.total_supply = self.total_supply.saturating_add(reward);
 
-            // применяем награду и транзакции к state
             if reward > 0 {
                 let coinbase = self.state.coinbase.clone();
                 self.state.credit(&coinbase, reward);
             }
 
+            // Применяем транзакции к state
             match self.state.apply_txs_atomic(&b.transactions) {
                 Ok(next_state) => {
                     self.state = next_state;
@@ -285,6 +300,7 @@ impl Blockchain {
                 }
             }
 
+            // Обновляем producer_state при наличии EnergyProof
             if let Some(ts) = last_ts_opt {
                 if let Some(ep) = &b.energy_proof {
                     self.producer_state.insert(
@@ -305,8 +321,6 @@ impl Blockchain {
 
         let new_height = self.chain.len();
 
-        // Логируем только настоящие реорги (смена ветки),
-        // а не обычное продолжение цепи на один блок.
         let is_simple_extension = {
             if let Some(new_tip_block) = self.blocks_by_hash.get(&self.tip_hash) {
                 new_tip_block.previous_hash == old_tip
@@ -325,140 +339,111 @@ impl Blockchain {
         Ok(())
     }
 
+    /// Авто‑регулировка сложности раз в DIFFICULTY_ADJUST_INTERVAL блоков.
     fn adjust_difficulty(&mut self) {
-        let len = self.chain.len() as u64;
-        if len <= 1 {
-            return;
-        }
-        if len % DIFFICULTY_ADJUST_INTERVAL != 0 {
+        // Нужна минимальная высота: genesis + интервал
+        if self.chain.len() < (DIFFICULTY_ADJUST_INTERVAL as usize + 1) {
             return;
         }
 
-        let window_size = DIFFICULTY_ADJUST_INTERVAL as usize;
-        if self.chain.len() < window_size + 1 {
+        let height = self.chain.len() as u64;
+        if height % DIFFICULTY_ADJUST_INTERVAL != 0 {
+            // Меняем сложность только на кратких INTERVAL высотах
             return;
         }
 
-        let last_idx = self.chain.len() - 1;
-        let first_idx = last_idx - window_size;
+        let last_index = self.chain.len() - 1;
+        let first_index = last_index - DIFFICULTY_ADJUST_INTERVAL as usize;
 
-        let first_block = &self.chain[first_idx];
-        let last_block = &self.chain[last_idx];
+        let first_block = &self.chain[first_index];
+        let last_block = &self.chain[last_index];
 
-        let time_span_ms = if last_block.timestamp > first_block.timestamp {
-            last_block.timestamp - first_block.timestamp
-        } else {
-            1
-        };
+        let actual_time_ms: u128 = last_block
+            .timestamp
+            .saturating_sub(first_block.timestamp);
+        // привели к u128
+        let target_time_ms: u128 =
+            (TARGET_BLOCK_TIME_SEC as u128 * 1000u128) * (DIFFICULTY_ADJUST_INTERVAL as u128);
 
-        let target_block_ms = (TARGET_BLOCK_TIME_SEC as u128) * 1000;
-        let avg_ms_per_block = time_span_ms / (window_size as u128);
-        let ratio = avg_ms_per_block as f64 / target_block_ms as f64;
-
-        let mut new_diff = self.difficulty;
-
-        if ratio < 0.5 {
-            if new_diff < MAX_DIFFICULTY.saturating_sub(1) {
-                new_diff += 2;
-            } else if new_diff < MAX_DIFFICULTY {
-                new_diff += 1;
-            }
-        } else if ratio < 0.9 {
-            if new_diff < MAX_DIFFICULTY {
-                new_diff += 1;
-            }
-        } else if ratio > 2.0 {
-            if new_diff > MIN_DIFFICULTY + 1 {
-                new_diff -= 2;
-            } else if new_diff > MIN_DIFFICULTY {
-                new_diff -= 1;
-            }
-        } else if ratio > 1.1 {
-            if new_diff > MIN_DIFFICULTY {
-                new_diff -= 1;
-            }
+        if actual_time_ms == 0 {
+            return;
         }
 
-        if new_diff != self.difficulty {
-            println!(
-                "Difficulty adjusted: {} -> {} (avg_ms_per_block={} target={} ratio={:.3})",
-                self.difficulty, new_diff, avg_ms_per_block, target_block_ms, ratio
-            );
-            self.difficulty = new_diff;
+        if actual_time_ms < target_time_ms {
+            // Блоки идут быстрее таргета — повышаем сложность
+            if self.difficulty < MAX_DIFFICULTY {
+                self.difficulty += 1;
+                println!(
+                    "Difficulty adjust: ↑ to {} (actual {} ms, target {} ms over {} blocks)",
+                    self.difficulty, actual_time_ms, target_time_ms, DIFFICULTY_ADJUST_INTERVAL
+                );
+            }
+        } else if actual_time_ms > target_time_ms {
+            // Блоки идут медленнее таргета — понижаем сложность
+            if self.difficulty > MIN_DIFFICULTY {
+                self.difficulty -= 1;
+                println!(
+                    "Difficulty adjust: ↓ to {} (actual {} ms, target {} ms over {} blocks)",
+                    self.difficulty, actual_time_ms, target_time_ms, DIFFICULTY_ADJUST_INTERVAL
+                );
+            }
         }
     }
 
-    pub fn save_state(&self, path: &Path) -> Result<(), String> {
-        let tmp = format!("{}.tmp", path.to_string_lossy());
-        let serialized = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
-        fs::write(&tmp, &serialized).map_err(|e| e.to_string())?;
-        fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    /// Сохранение состояния блокчейна в файл (JSON).
+    pub fn save_state(&self, path: &Path) -> anyhow::Result<()> {
+        let tmp_path = path.with_extension("tmp");
+        let data = serde_json::to_vec_pretty(self)?;
+        fs::write(&tmp_path, &data)?;
+        fs::rename(&tmp_path, path)?;
         Ok(())
     }
 
-    pub fn load_state(path: &Path) -> Result<Self, String> {
-        let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
-        let mut bc: Blockchain = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    /// Загрузка состояния блокчейна из файла.
+    pub fn load_state(path: &Path) -> anyhow::Result<Blockchain> {
+        let data = fs::read(path)?;
+        let mut bc: Blockchain = serde_json::from_slice(&data)?;
+
+        // Полная реконструкция индексных структур из chain.
+        let mut blocks_by_hash = HashMap::new();
+        let mut children: HashMap<String, Vec<String>> = HashMap::new();
+        let mut chainwork_by_hash = HashMap::new();
 
         if bc.chain.is_empty() {
-            return Err("loaded blockchain has empty chain".to_string());
+            anyhow::bail!("loaded chain is empty");
         }
 
-        let tip = bc.chain.last().unwrap();
-        bc.tip_hash = tip.hash.clone();
+        // Обрабатываем генезис
+        let genesis = bc.chain[0].clone();
+        let genesis_hash = genesis.hash.clone();
+        let work0 = block_work(&genesis);
+        blocks_by_hash.insert(genesis_hash.clone(), genesis);
+        chainwork_by_hash.insert(genesis_hash.clone(), work0);
 
-        if bc.blocks_by_hash.is_empty() {
-            bc.blocks_by_hash = HashMap::new();
-            bc.chainwork_by_hash = HashMap::new();
-            bc.children = HashMap::new();
+        // Остальные блоки по основной цепи
+        let mut prev_hash = genesis_hash.clone();
+        for b in bc.chain.iter().skip(1).cloned() {
+            let h = b.hash.clone();
+            blocks_by_hash.insert(h.clone(), b.clone());
+            children.entry(prev_hash.clone()).or_default().push(h.clone());
 
-            for b in &bc.chain {
-                let h = b.hash.clone();
-                let work = block_work(b);
-                bc.blocks_by_hash.insert(h.clone(), b.clone());
-                let parent = b.previous_hash.clone();
-                bc.children.entry(parent).or_insert_with(Vec::new).push(h.clone());
+            let parent_work = *chainwork_by_hash.get(&prev_hash).unwrap_or(&0);
+            let my_work = parent_work.saturating_add(block_work(&b));
+            chainwork_by_hash.insert(h.clone(), my_work);
 
-                let parent_work = bc
-                    .chainwork_by_hash
-                    .get(&b.previous_hash)
-                    .copied()
-                    .unwrap_or(0);
-                bc.chainwork_by_hash
-                    .insert(h.clone(), parent_work.saturating_add(work));
-            }
+            prev_hash = h;
         }
 
-        // Если state пустой (старый снапшот), инициализируем его по текущей цепи
-        if bc.state.balances.is_empty() {
-            let coinbase = DEV_COINBASE_ADDR.to_string();
-            bc.state = State::new(coinbase);
-            let mut total_supply = 0u64;
-            let coinbase_addr = bc.state.coinbase.clone();
-            for b in &bc.chain {
-                let cfg = EmissionConfig::default();
-                let reward_and_ts = calculate_reward(
-                    total_supply,
-                    b.energy_proof.as_ref(),
-                    bc.active_ai_pubkey.as_deref(),
-                    None,
-                    &cfg,
-                );
-                if let Ok((reward, _)) = reward_and_ts {
-                    total_supply = total_supply.saturating_add(reward);
-                    if reward > 0 {
-                        bc.state.credit(&coinbase_addr, reward);
-                    }
-                    let _ = bc.state.apply_txs_atomic(&b.transactions);
-                }
-            }
-            bc.total_supply = total_supply;
-        }
+        bc.blocks_by_hash = blocks_by_hash;
+        bc.children = children;
+        bc.chainwork_by_hash = chainwork_by_hash;
+        bc.tip_hash = prev_hash;
 
         Ok(bc)
     }
 }
 
+/// Работа блока (chainwork) по его сложности.
 fn block_work(b: &Block) -> u128 {
     if b.difficulty >= 63 {
         u128::MAX

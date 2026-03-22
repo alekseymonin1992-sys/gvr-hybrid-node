@@ -36,6 +36,10 @@ struct Cli {
     /// nonce
     #[arg(long)]
     nonce: u64,
+
+    /// комиссия за транзакцию
+    #[arg(long, default_value_t = 0)]
+    fee: u64,
 }
 
 // Упрощённая копия P2pMessage для Tx, чтобы сформировать JSON так же, как в p2p.rs
@@ -50,12 +54,12 @@ fn main() -> Result<(), String> {
 
     let sk = load_dev_key().map_err(|e| format!("failed to load dev key: {}", e))?;
     println!(
-        "Sending P2P tx: from={} to={} amount={} nonce={} via {}",
-        cli.from, cli.to, cli.amount, cli.nonce, cli.p2p
+        "Sending P2P tx: from={} to={} amount={} nonce={} fee={} via {}",
+        cli.from, cli.to, cli.amount, cli.nonce, cli.fee, cli.p2p
     );
 
     // Подписываем перевод
-    let st = sign_transfer(&sk, &cli.from, &cli.to, cli.amount, cli.nonce);
+    let st = sign_transfer(&sk, &cli.from, &cli.to, cli.amount, cli.fee, cli.nonce);
     let tx = Transaction::signed(st);
 
     // Упаковываем в P2pMessage::Tx

@@ -2,7 +2,7 @@ use k256::ecdsa::{signature::Signer, signature::Verifier, Signature, SigningKey,
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// Аккаунт в системе: публичный ключ и адрес (упрощенный).
+/// Аккаунт в системе: публичный ключ и адрес (упрощённый).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Account {
     /// SEC1-encoded uncompressed public key
@@ -29,15 +29,16 @@ impl Account {
     }
 }
 
-/// Подписанный перевод: отправитель, получатель, сумма, nonce и подпись.
+/// Подписанный перевод: отправитель, получатель, сумма, fee, nonce и подпись.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SignedTransfer {
-    pub from: String,   // адрес отправителя (должен совпадать с account.address)
-    pub to: String,     // адрес получателя
-    pub amount: u64,
-    pub nonce: u64,     // sequence для защиты от replay / упорядочивания
-    pub pubkey_sec1: Vec<u8>,   // публичный ключ отправителя
-    pub signature: Vec<u8>,     // DER-подпись
+    pub from: String,        // адрес отправителя
+    pub to: String,          // адрес получателя
+    pub amount: u64,         // основная сумма перевода
+    pub fee: u64,            // комиссия за транзакцию
+    pub nonce: u64,          // sequence для защиты от replay / упорядочивания
+    pub pubkey_sec1: Vec<u8>,// публичный ключ отправителя
+    pub signature: Vec<u8>,  // DER-подпись
 }
 
 impl SignedTransfer {
@@ -49,6 +50,7 @@ impl SignedTransfer {
         buf.extend(self.to.as_bytes());
         buf.push(0u8);
         buf.extend(self.amount.to_le_bytes());
+        buf.extend(self.fee.to_le_bytes());
         buf.extend(self.nonce.to_le_bytes());
         buf
     }
@@ -85,6 +87,7 @@ pub fn sign_transfer(
     from_addr: &str,
     to_addr: &str,
     amount: u64,
+    fee: u64,
     nonce: u64,
 ) -> SignedTransfer {
     let vk = VerifyingKey::from(sk);
@@ -94,6 +97,7 @@ pub fn sign_transfer(
         from: from_addr.to_string(),
         to: to_addr.to_string(),
         amount,
+        fee,
         nonce,
         pubkey_sec1: pub_sec1,
         signature: Vec::new(),

@@ -3,6 +3,8 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::fs;
+use std::path::PathBuf;
 
 use axum::{
     extract::{Query, State},
@@ -114,6 +116,7 @@ pub fn start_rpc(
                 .route("/balance", get(handle_balance))
                 .route("/nonce", get(handle_nonce))
                 .route("/p2p_debug", get(handle_p2p_debug))
+                .route("/ui", get(handle_ui))
                 .with_state(state);
 
             let addr: SocketAddr = match addr_s.parse() {
@@ -144,6 +147,30 @@ pub fn start_rpc(
             }
         });
     });
+}
+
+/// GET /ui — простой HTML UI (static/index.html)
+async fn handle_ui() -> Response {
+    // Путь к static/index.html относительно корня запуска (проекта / dist)
+    let path: PathBuf = PathBuf::from("static").join("index.html");
+
+    match fs::read_to_string(&path) {
+        Ok(contents) => {
+            // Вернём HTML с 200 OK
+            (
+                StatusCode::OK,
+                (
+                    [("Content-Type", "text/html; charset=utf-8")],
+                    contents,
+                ),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            let body = format!("Failed to read UI file {}: {}", path.display(), e);
+            (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+        }
+    }
 }
 
 /// POST /tx

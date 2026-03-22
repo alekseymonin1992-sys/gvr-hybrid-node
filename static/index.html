@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GVR Hybrid Node UI</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
+    h1, h2 { margin-bottom: 0.3em; }
+    pre { background: #111; color: #0f0; padding: 10px; overflow-x: auto; }
+    label { display: block; margin-top: 8px; }
+    input[type="text"], input[type="number"] {
+      width: 100%; padding: 4px; box-sizing: border-box;
+    }
+    button { margin-top: 10px; padding: 6px 12px; }
+    .section { border: 1px solid #ccc; padding: 10px 12px; margin-bottom: 16px; }
+    .row { display: flex; gap: 16px; }
+    .col { flex: 1; }
+  </style>
+</head>
+<body>
+  <h1>GVR Hybrid Node UI</h1>
+  <p>Simple web interface for status and sending signed transactions.<br>
+     RPC base URL is assumed to be <code>http://127.0.0.1:8080</code>.</p>
+
+  <div class="section">
+    <h2>Node status</h2>
+    <button onclick="loadStatus()">Load /status</button>
+    <pre id="statusBox">{ }</pre>
+  </div>
+
+  <div class="section">
+    <h2>Balances & nonce</h2>
+    <div class="row">
+      <div class="col">
+        <h3>Balance</h3>
+        <label>Address:</label>
+        <input type="text" id="balAddr" value="alice">
+        <button onclick="loadBalance()">GET /balance?addr=...</button>
+        <pre id="balanceBox">{ }</pre>
+      </div>
+      <div class="col">
+        <h3>Nonce</h3>
+        <label>Address:</label>
+        <input type="text" id="nonceAddr" value="alice">
+        <button onclick="loadNonce()">GET /nonce?addr=...</button>
+        <pre id="nonceBox">{ }</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Send signed transaction via RPC /tx</h2>
+    <p><b>Note:</b> this UI expects you to provide an already signed transfer.<br>
+       For now it is mainly for debugging; <code>from</code>, <code>to</code>, etc. are raw fields of <code>SignedTransferDto</code>.</p>
+
+    <label>From (string addr):</label>
+    <input type="text" id="txFrom" value="alice">
+
+    <label>To (string addr):</label>
+    <input type="text" id="txTo" value="bob">
+
+    <label>Amount (u64):</label>
+    <input type="number" id="txAmount" value="10">
+
+    <label>Nonce (u64):</label>
+    <input type="number" id="txNonce" value="0">
+
+    <label>Fee (u64):</label>
+    <input type="number" id="txFee" value="1">
+
+    <label>pubkey_sec1 (hex):</label>
+    <input type="text" id="txPubkeySec1" placeholder="0465...">
+
+    <label>signature (DER, hex):</label>
+    <input type="text" id="txSignature" placeholder="3045...">
+
+    <button onclick="sendTx()">POST /tx</button>
+    <pre id="txResultBox"></pre>
+  </div>
+
+<script>
+const BASE = "http://127.0.0.1:8080";
+
+async function loadStatus() {
+  try {
+    const r = await fetch(BASE + "/status");
+    const j = await r.json();
+    document.getElementById("statusBox").textContent = JSON.stringify(j, null, 2);
+  } catch (e) {
+    document.getElementById("statusBox").textContent = "Error: " + e;
+  }
+}
+
+async function loadBalance() {
+  const addr = document.getElementById("balAddr").value;
+  try {
+    const r = await fetch(BASE + "/balance?addr=" + encodeURIComponent(addr));
+    const j = await r.json();
+    document.getElementById("balanceBox").textContent = JSON.stringify(j, null, 2);
+  } catch (e) {
+    document.getElementById("balanceBox").textContent = "Error: " + e;
+  }
+}
+
+async function loadNonce() {
+  const addr = document.getElementById("nonceAddr").value;
+  try {
+    const r = await fetch(BASE + "/nonce?addr=" + encodeURIComponent(addr));
+    const j = await r.json();
+    document.getElementById("nonceBox").textContent = JSON.stringify(j, null, 2);
+  } catch (e) {
+    document.getElementById("nonceBox").textContent = "Error: " + e;
+  }
+}
+
+function hexToBytes(hex) {
+  if (!hex) return [];
+  const clean = hex.trim().replace(/^0x/, "");
+  if (clean.length % 2 !== 0) {
+    throw new Error("hex length must be even");
+  }
+  const arr = [];
+  for (let i = 0; i < clean.length; i += 2) {
+    arr.push(parseInt(clean.slice(i, i+2), 16));
+  }
+  return arr;
+}
+
+async function sendTx() {
+  const from = document.getElementById("txFrom").value;
+  const to = document.getElementById("txTo").value;
+  const amount = Number(document.getElementById("txAmount").value);
+  const nonce = Number(document.getElementById("txNonce").value);
+  const fee = Number(document.getElementById("txFee").value);
+  const pubHex = document.getElementById("txPubkeySec1").value;
+  const sigHex = document.getElementById("txSignature").value;
+
+  let pubkey_sec1, signature;
+  try {
+    pubkey_sec1 = hexToBytes(pubHex);
+    signature = hexToBytes(sigHex);
+  } catch (e) {
+    document.getElementById("txResultBox").textContent = "Error parsing hex: " + e;
+    return;
+  }
+
+  const dto = {
+    from,
+    to,
+    amount,
+    nonce,
+    fee,
+    pubkey_sec1,
+    signature
+  };
+
+  try {
+    const r = await fetch(BASE + "/tx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dto)
+    });
+    const text = await r.text();
+    const out = "Status: " + r.status + "\nBody:\n" + text;
+    document.getElementById("txResultBox").textContent = out;
+  } catch (e) {
+    document.getElementById("txResultBox").textContent = "Error: " + e;
+  }
+}
+</script>
+</body>
+</html>

@@ -24,6 +24,6 @@ GVR — экспериментальная гибридная криптовал
 Требуется установленный Rust (stable) и Cargo.
 
 ```bash
-git clone <репозиторий>
-cd gvr_v2
+git clone https://github.com/alekseymonin1992-sys/gvr-hybrid-node.git
+cd gvr-hybrid-node
 cargo build --release

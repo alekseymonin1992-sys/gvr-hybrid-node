@@ -1,2 +1,17 @@
+# Rust build artifacts
 target/
+
+# Windows-specific
+*.pdb
+
+# Dist folder (Windows distribution with .exe and .bat)
 dist/
+
+# IDE / editor junk
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Node / web stuff (если появится позже)
+node_modules/

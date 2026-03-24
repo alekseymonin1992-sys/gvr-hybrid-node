@@ -1,17 +1,14 @@
-# Rust build artifacts
-target/
+# Build artifacts
+/target
 
-# Windows-specific
-*.pdb
+# Node state
+state.json
+state.json.tmp
 
-# Dist folder (Windows distribution with .exe and .bat)
-dist/
+# Dev / AI keys
+dev_key.bin
+ai_key.bin
+ai_pubkey.bin
 
-# IDE / editor junk
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Node / web stuff (если появится позже)
-node_modules/
+# Wallet private keys
+wallets/

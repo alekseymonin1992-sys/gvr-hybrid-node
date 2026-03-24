@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use axum::{
-    extract::{Query, State},
+    extract::{DefaultBodyLimit, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::accounts::SignedTransfer;
 use crate::blockchain::Blockchain;
 use crate::mempool::Mempool;
+use crate::energy::EnergyProof;
 use crate::p2p::{
     ban_peer, get_peer_states_arc, get_peers_arc, request_blocks_from_locators, request_status,
     unban_peer, PeerState,
@@ -28,6 +29,10 @@ use crate::transaction::Transaction;
 struct RpcState {
     blockchain: Arc<Mutex<Blockchain>>,
     mempool: Arc<Mutex<Mempool>>,
+    // последний внешний EnergyProof, присланный по RPC
+    last_energy_proof: Arc<Mutex<Option<EnergyProof>>>,
+    // для простого rate-limit по /energy_proof
+    last_ep_ts: Arc<Mutex<u128>>,
 }
 
 fn now_ms() -> u128 {
@@ -47,6 +52,18 @@ struct SignedTransferDto {
     pubkey_sec1: Vec<u8>,
     signature: Vec<u8>,
     fee: u64,
+}
+
+/// DTO для приёма EnergyProof по HTTP.
+#[derive(Debug, Deserialize)]
+struct EnergyProofDto {
+    producer_id: String,
+    sequence: u64,
+    kwh: f64,
+    timestamp: u128,
+    ai_score: f64,
+    ai_signature: Vec<u8>,
+    proof_id: Option<String>,
 }
 
 /// DTO для вывода одного пира через /peers.
@@ -84,6 +101,7 @@ pub fn start_rpc(
     bind_addr: &str,
     blockchain: Arc<Mutex<Blockchain>>,
     mempool: Arc<Mutex<Mempool>>,
+    last_energy_proof: Arc<Mutex<Option<EnergyProof>>>,
 ) {
     let addr_s = bind_addr.to_string();
     println!("RPC (axum) starting on http://{}", addr_s);
@@ -91,6 +109,8 @@ pub fn start_rpc(
     let state = RpcState {
         blockchain,
         mempool,
+        last_energy_proof,
+        last_ep_ts: Arc::new(Mutex::new(0)),
     };
 
     thread::spawn(move || {
@@ -117,6 +137,9 @@ pub fn start_rpc(
                 .route("/nonce", get(handle_nonce))
                 .route("/p2p_debug", get(handle_p2p_debug))
                 .route("/ui", get(handle_ui))
+                .route("/energy_proof", post(handle_energy_proof))
+                // Ограничиваем размер тела запросов, чтобы не положить ноду огромными JSON'ами
+                .layer(DefaultBodyLimit::max(16 * 1024)) // 16 KB
                 .with_state(state);
 
             let addr: SocketAddr = match addr_s.parse() {
@@ -151,12 +174,10 @@ pub fn start_rpc(
 
 /// GET /ui — простой HTML UI (static/index.html)
 async fn handle_ui() -> Response {
-    // Путь к static/index.html относительно корня запуска (проекта / dist)
     let path: PathBuf = PathBuf::from("static").join("index.html");
 
     match fs::read_to_string(&path) {
         Ok(contents) => {
-            // Вернём HTML с 200 OK
             (
                 StatusCode::OK,
                 (
@@ -207,6 +228,92 @@ async fn handle_tx(
 
     let resp = serde_json::json!({ "tx_hash": tx_hash });
     (StatusCode::OK, Json(resp)).into_response()
+}
+
+/// POST /energy_proof
+///
+/// Принимает EnergyProofDto, проверяет поля и подпись по active_ai_pubkey,
+/// и если всё ок, сохраняет его в RpcState.last_energy_proof.
+/// Есть простой rate-limit: не чаще, чем раз в 1 секунду.
+async fn handle_energy_proof(
+    State(st): State<RpcState>,
+    Json(dto): Json<EnergyProofDto>,
+) -> Response {
+    // Rate-limit: не чаще, чем раз в 1000 мс
+    {
+        let now = now_ms();
+        let mut last_ts = st.last_ep_ts.lock().unwrap();
+        if now.saturating_sub(*last_ts) < 1000 {
+            let msg = "too many EnergyProof submissions, slow down".to_string();
+            println!("RPC /energy_proof: {}", msg);
+            return (StatusCode::TOO_MANY_REQUESTS, msg).into_response();
+        }
+        *last_ts = now;
+    }
+
+    // Собираем EnergyProof из DTO
+    let proof = EnergyProof {
+        producer_id: dto.producer_id,
+        sequence: dto.sequence,
+        kwh: dto.kwh,
+        timestamp: dto.timestamp,
+        ai_score: dto.ai_score,
+        ai_signature: dto.ai_signature,
+        proof_id: dto.proof_id,
+    };
+
+    // Проверка полей (kwh > 0, ai_score >= MIN_AI_SCORE, timestamp не в далёком будущем)
+    if let Err(e) = proof.validate_fields(crate::constants::MIN_AI_SCORE) {
+        let msg = format!("invalid EnergyProof fields: {}", e);
+        println!("RPC /energy_proof: {}", msg);
+        return (StatusCode::BAD_REQUEST, msg).into_response();
+    }
+
+    // Нужен active_ai_pubkey в блокчейне для проверки подписи.
+    let ai_pub_opt = {
+        let bc = st.blockchain.lock().unwrap();
+        bc.active_ai_pubkey.clone()
+    };
+
+    let ai_pub = match ai_pub_opt {
+        Some(p) => p,
+        None => {
+            let msg = "AI public key not configured on this node".to_string();
+            println!("RPC /energy_proof: {}", msg);
+            return (StatusCode::BAD_REQUEST, msg).into_response();
+        }
+    };
+
+    // Проверяем подпись
+    match proof.verify_signature(&ai_pub) {
+        Ok(true) => {
+            // Сохраняем последний валидный proof
+            {
+                let mut slot = st.last_energy_proof.lock().unwrap();
+                *slot = Some(proof.clone());
+            }
+            println!(
+                "RPC /energy_proof: accepted proof producer_id={} seq={} kwh={} ai_score={}",
+                proof.producer_id, proof.sequence, proof.kwh, proof.ai_score
+            );
+            let body = serde_json::json!({
+                "status": "ok",
+                "producer_id": proof.producer_id,
+                "sequence": proof.sequence
+            });
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(false) => {
+            let msg = "AI signature invalid".to_string();
+            println!("RPC /energy_proof: {}", msg);
+            (StatusCode::BAD_REQUEST, msg).into_response()
+        }
+        Err(e) => {
+            let msg = format!("verify error: {}", e);
+            println!("RPC /energy_proof: {}", msg);
+            (StatusCode::BAD_REQUEST, msg).into_response()
+        }
+    }
 }
 
 /// GET /status
@@ -435,7 +542,6 @@ async fn handle_p2p_debug() -> Response {
     (StatusCode::OK, Json(body)).into_response()
 }
 
-/// Собрать список PeerInfo из глобального p2p::GLOBAL_PEER_STATES.
 fn collect_peer_infos() -> Vec<PeerInfo> {
     let mut result = Vec::new();
 
@@ -459,7 +565,6 @@ fn collect_peer_infos() -> Vec<PeerInfo> {
     result
 }
 
-/// Упрощённая копия build_locators для вызова из RPC.
 fn build_locators_for_rpc(bc: &Blockchain, max_count: usize) -> Vec<String> {
     let mut locators = Vec::new();
     if bc.chain.is_empty() {

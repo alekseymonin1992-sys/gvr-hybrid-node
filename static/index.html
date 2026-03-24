@@ -1,172 +1,357 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <title>GVR Hybrid Node UI</title>
-  <style>
-    body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
-    h1, h2 { margin-bottom: 0.3em; }
-    pre { background: #111; color: #0f0; padding: 10px; overflow-x: auto; }
-    label { display: block; margin-top: 8px; }
-    input[type="text"], input[type="number"] {
-      width: 100%; padding: 4px; box-sizing: border-box;
-    }
-    button { margin-top: 10px; padding: 6px 12px; }
-    .section { border: 1px solid #ccc; padding: 10px 12px; margin-bottom: 16px; }
-    .row { display: flex; gap: 16px; }
-    .col { flex: 1; }
-  </style>
+    <meta charset="UTF-8" />
+    <title>GVR Hybrid Node UI</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0b1020;
+            color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #141a33;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #232a45;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        header span {
+            font-size: 12px;
+            color: #9ea6c4;
+        }
+        main {
+            padding: 16px 20px 32px;
+            max-width: 1040px;
+            margin: 0 auto;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1.4fr;
+            gap: 16px;
+        }
+        .card {
+            background: #141a33;
+            border-radius: 8px;
+            padding: 14px 16px;
+            border: 1px solid #232a45;
+        }
+        .card h2 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            color: #d8e0ff;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 14px;
+        }
+        .row span.label {
+            color: #9ea6c4;
+        }
+        .row span.value {
+            font-weight: 500;
+        }
+        .small {
+            font-size: 12px;
+            color: #8087a5;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            margin: 4px 0 8px;
+            border-radius: 4px;
+            border: 1px solid #323a5a;
+            background: #0b1020;
+            color: #f5f5f5;
+            font-size: 13px;
+        }
+        label {
+            font-size: 12px;
+            color: #9ea6c4;
+        }
+        button {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: none;
+            background: #2962ff;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1748c7;
+        }
+        pre {
+            background: #0b1020;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            max-height: 220px;
+            overflow: auto;
+        }
+        .muted {
+            color: #8087a5;
+        }
+        .ok {
+            color: #8bc34a;
+        }
+        .err {
+            color: #ff7043;
+        }
+        code {
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 11px;
+        }
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>GVR Hybrid Node UI</h1>
-  <p>Simple web interface for status and sending signed transactions.<br>
-     RPC base URL is assumed to be <code>http://127.0.0.1:8080</code>.</p>
-
-  <div class="section">
-    <h2>Node status</h2>
-    <button onclick="loadStatus()">Load /status</button>
-    <pre id="statusBox">{ }</pre>
-  </div>
-
-  <div class="section">
-    <h2>Balances & nonce</h2>
-    <div class="row">
-      <div class="col">
-        <h3>Balance</h3>
-        <label>Address:</label>
-        <input type="text" id="balAddr" value="alice">
-        <button onclick="loadBalance()">GET /balance?addr=...</button>
-        <pre id="balanceBox">{ }</pre>
-      </div>
-      <div class="col">
-        <h3>Nonce</h3>
-        <label>Address:</label>
-        <input type="text" id="nonceAddr" value="alice">
-        <button onclick="loadNonce()">GET /nonce?addr=...</button>
-        <pre id="nonceBox">{ }</pre>
-      </div>
+<header>
+    <div>
+        <h1>GVR Hybrid Node</h1>
+        <span id="node-info" class="small">RPC: <code id="rpc-url"></code></span>
     </div>
-  </div>
+    <div class="small">
+        <span id="last-upd" class="muted">обновление...</span>
+    </div>
+</header>
+<main>
+    <div class="grid">
+        <!-- Статус сети -->
+        <div class="card">
+            <h2>Статус сети</h2>
+            <div class="row"><span class="label">Высота:</span><span class="value" id="height">-</span></div>
+            <div class="row"><span class="label">Tip:</span><span class="value" id="tip" style="font-size:11px;word-break:break-all;">-</span></div>
+            <div class="row"><span class="label">Сложность:</span><span class="value" id="difficulty">-</span></div>
+            <div class="row"><span class="label">Total supply:</span><span class="value" id="total_supply">-</span></div>
+            <div class="row"><span class="label">Фаза эмиссии:</span><span class="value" id="phase">-</span></div>
+            <div class="row"><span class="label">alice:</span><span class="value" id="alice_balance">-</span></div>
+            <div class="row"><span class="label">bob:</span><span class="value" id="bob_balance">-</span></div>
+            <div class="row"><span class="label">alice nonce:</span><span class="value" id="alice_nonce">-</span></div>
+        </div>
 
-  <div class="section">
-    <h2>Send signed transaction via RPC /tx</h2>
-    <p><b>Note:</b> this UI expects you to provide an already signed transfer.<br>
-       For now it is mainly for debugging; <code>from</code>, <code>to</code>, etc. are raw fields of <code>SignedTransferDto</code>.</p>
+        <!-- Баланс адреса -->
+        <div class="card">
+            <h2>Баланс адреса</h2>
+            <div class="small muted">Введите адрес (строка state, например <code>vasya</code>, <code>alice</code>, <code>bob</code>).</div>
+            <input type="text" id="addr-input" placeholder="addr (например, vasya)" />
+            <button id="btn-balance">Показать баланс</button>
+            <div class="row" style="margin-top:10px;">
+                <span class="label">Баланс:</span><span class="value" id="addr-balance-value">-</span>
+            </div>
+            <div class="small muted" id="addr-balance-status"></div>
+        </div>
+    </div>
 
-    <label>From (string addr):</label>
-    <input type="text" id="txFrom" value="alice">
+    <!-- Форма для ручного POST /tx -->
+    <div class="card" style="margin-top:16px;">
+        <h2>Отправка Signed Tx (raw POST /tx)</h2>
+        <div class="small muted" style="margin-bottom:6px;">
+            Внимание: эта форма отправляет <code>SignedTransferDto</code> напрямую в ноду.<br/>
+            Подпись <strong>должна быть уже корректной</strong> (сформирована кошельком/клиентом).
+        </div>
 
-    <label>To (string addr):</label>
-    <input type="text" id="txTo" value="bob">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+                <label>From (addr):</label>
+                <input id="tx-from" type="text" value="alice">
 
-    <label>Amount (u64):</label>
-    <input type="number" id="txAmount" value="10">
+                <label>To (addr):</label>
+                <input id="tx-to" type="text" value="bob">
 
-    <label>Nonce (u64):</label>
-    <input type="number" id="txNonce" value="0">
+                <label>Amount (u64):</label>
+                <input id="tx-amount" type="number" value="10">
 
-    <label>Fee (u64):</label>
-    <input type="number" id="txFee" value="1">
+                <label>Fee (u64):</label>
+                <input id="tx-fee" type="number" value="1">
 
-    <label>pubkey_sec1 (hex):</label>
-    <input type="text" id="txPubkeySec1" placeholder="0465...">
+                <label>Nonce (u64):</label>
+                <input id="tx-nonce" type="number" value="0">
+            </div>
+            <div>
+                <label>pubkey_sec1 (hex, uncompressed):</label>
+                <input id="tx-pubkey-hex" type="text" placeholder="04... (SEC1 uncompressed)">
 
-    <label>signature (DER, hex):</label>
-    <input type="text" id="txSignature" placeholder="3045...">
+                <label>signature DER (hex):</label>
+                <input id="tx-sig-hex" type="text" placeholder="30... (DER ECDSA)" />
 
-    <button onclick="sendTx()">POST /tx</button>
-    <pre id="txResultBox"></pre>
-  </div>
+                <div class="small muted" style="margin-top:4px;">
+                    Формат JSON, который формируется:<br/>
+                    <code>{ "from", "to", "amount", "fee", "nonce", "pubkey_sec1": [..], "signature": [..] }</code>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:10px;">
+            <button id="tx-send-btn">POST /tx</button>
+        </div>
+        <pre id="tx-send-log" style="margin-top:8px;"></pre>
+    </div>
+
+    <!-- Лог RPC-запросов -->
+    <div class="card" style="margin-top:16px;">
+        <h2>RPC отладка</h2>
+        <div class="small muted" style="margin-bottom:6px;">
+            Ответы последних запросов к RPC-ноде (/status, /balance, /tx).
+        </div>
+        <pre id="log"></pre>
+    </div>
+</main>
 
 <script>
-const BASE = "http://127.0.0.1:8080";
+    const RPC_BASE = window.location.origin; // http://127.0.0.1:8080
 
-async function loadStatus() {
-  try {
-    const r = await fetch(BASE + "/status");
-    const j = await r.json();
-    document.getElementById("statusBox").textContent = JSON.stringify(j, null, 2);
-  } catch (e) {
-    document.getElementById("statusBox").textContent = "Error: " + e;
-  }
-}
+    document.getElementById("rpc-url").textContent = RPC_BASE;
 
-async function loadBalance() {
-  const addr = document.getElementById("balAddr").value;
-  try {
-    const r = await fetch(BASE + "/balance?addr=" + encodeURIComponent(addr));
-    const j = await r.json();
-    document.getElementById("balanceBox").textContent = JSON.stringify(j, null, 2);
-  } catch (e) {
-    document.getElementById("balanceBox").textContent = "Error: " + e;
-  }
-}
+    function log(msg, type = "info") {
+        const el = document.getElementById("log");
+        const prefix = type === "err" ? "[ERR] " : type === "ok" ? "[OK] " : "[*] ";
+        const time = new Date().toLocaleTimeString();
+        el.textContent = `${prefix}${time} ${msg}\n` + el.textContent;
+    }
 
-async function loadNonce() {
-  const addr = document.getElementById("nonceAddr").value;
-  try {
-    const r = await fetch(BASE + "/nonce?addr=" + encodeURIComponent(addr));
-    const j = await r.json();
-    document.getElementById("nonceBox").textContent = JSON.stringify(j, null, 2);
-  } catch (e) {
-    document.getElementById("nonceBox").textContent = "Error: " + e;
-  }
-}
+    function hexToBytes(hex) {
+        hex = hex.trim();
+        if (hex.startsWith("0x") || hex.startsWith("0X")) {
+            hex = hex.slice(2);
+        }
+        if (hex.length === 0) return [];
+        if (hex.length % 2 !== 0) {
+            throw new Error("Нечётная длина hex-строки");
+        }
+        const out = [];
+        for (let i = 0; i < hex.length; i += 2) {
+            const byte = parseInt(hex.slice(i, i + 2), 16);
+            if (Number.isNaN(byte)) {
+                throw new Error("Некорректный hex в позиции " + i);
+            }
+            out.push(byte);
+        }
+        return out;
+    }
 
-function hexToBytes(hex) {
-  if (!hex) return [];
-  const clean = hex.trim().replace(/^0x/, "");
-  if (clean.length % 2 !== 0) {
-    throw new Error("hex length must be even");
-  }
-  const arr = [];
-  for (let i = 0; i < clean.length; i += 2) {
-    arr.push(parseInt(clean.slice(i, i+2), 16));
-  }
-  return arr;
-}
+    async function fetchStatus() {
+        try {
+            const resp = await fetch(RPC_BASE + "/status");
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
 
-async function sendTx() {
-  const from = document.getElementById("txFrom").value;
-  const to = document.getElementById("txTo").value;
-  const amount = Number(document.getElementById("txAmount").value);
-  const nonce = Number(document.getElementById("txNonce").value);
-  const fee = Number(document.getElementById("txFee").value);
-  const pubHex = document.getElementById("txPubkeySec1").value;
-  const sigHex = document.getElementById("txSignature").value;
+            document.getElementById("height").textContent = data.height;
+            document.getElementById("tip").textContent = data.tip;
+            document.getElementById("difficulty").textContent = data.difficulty;
+            document.getElementById("total_supply").textContent = data.total_supply;
+            document.getElementById("phase").textContent = data.phase;
+            document.getElementById("alice_balance").textContent = data.alice_balance;
+            document.getElementById("bob_balance").textContent = data.bob_balance;
+            document.getElementById("alice_nonce").textContent = data.alice_nonce;
 
-  let pubkey_sec1, signature;
-  try {
-    pubkey_sec1 = hexToBytes(pubHex);
-    signature = hexToBytes(sigHex);
-  } catch (e) {
-    document.getElementById("txResultBox").textContent = "Error parsing hex: " + e;
-    return;
-  }
+            const upd = document.getElementById("last-upd");
+            upd.textContent = "обновлено: " + new Date().toLocaleTimeString();
+            upd.className = "small ok";
 
-  const dto = {
-    from,
-    to,
-    amount,
-    nonce,
-    fee,
-    pubkey_sec1,
-    signature
-  };
+            log("GET /status OK height=" + data.height + " total_supply=" + data.total_supply, "ok");
+        } catch (e) {
+            const upd = document.getElementById("last-upd");
+            upd.textContent = "ошибка обновления: " + e.message;
+            upd.className = "small err";
+            log("GET /status failed: " + e.message, "err");
+        }
+    }
 
-  try {
-    const r = await fetch(BASE + "/tx", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dto)
+    async function fetchBalance(addr) {
+        if (!addr) {
+            document.getElementById("addr-balance-value").textContent = "-";
+            document.getElementById("addr-balance-status").textContent = "введите адрес";
+            return;
+        }
+        try {
+            const resp = await fetch(RPC_BASE + "/balance?addr=" + encodeURIComponent(addr));
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            document.getElementById("addr-balance-value").textContent = data.balance;
+            const st = document.getElementById("addr-balance-status");
+            st.textContent = "OK: баланс загружен";
+            st.className = "small ok";
+            log(`GET /balance?addr=${addr} OK balance=${data.balance}`, "ok");
+        } catch (e) {
+            const st = document.getElementById("addr-balance-status");
+            st.textContent = "ошибка: " + e.message;
+            st.className = "small err";
+            log("GET /balance failed: " + e.message, "err");
+        }
+    }
+
+    document.getElementById("btn-balance").addEventListener("click", () => {
+        const addr = document.getElementById("addr-input").value.trim();
+        fetchBalance(addr);
     });
-    const text = await r.text();
-    const out = "Status: " + r.status + "\nBody:\n" + text;
-    document.getElementById("txResultBox").textContent = out;
-  } catch (e) {
-    document.getElementById("txResultBox").textContent = "Error: " + e;
-  }
-}
+
+    document.getElementById("addr-input").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            const addr = document.getElementById("addr-input").value.trim();
+            fetchBalance(addr);
+        }
+    });
+
+    document.getElementById("tx-send-btn").addEventListener("click", async () => {
+        const from   = document.getElementById("tx-from").value.trim();
+        const to     = document.getElementById("tx-to").value.trim();
+        const amount = Number(document.getElementById("tx-amount").value);
+        const fee    = Number(document.getElementById("tx-fee").value);
+        const nonce  = Number(document.getElementById("tx-nonce").value);
+        const pubHex = document.getElementById("tx-pubkey-hex").value.trim();
+        const sigHex = document.getElementById("tx-sig-hex").value.trim();
+        const logEl  = document.getElementById("tx-send-log");
+
+        try {
+            const dto = {
+                from,
+                to,
+                amount,
+                fee,
+                nonce,
+                pubkey_sec1: hexToBytes(pubHex),
+                signature:   hexToBytes(sigHex),
+            };
+
+            logEl.textContent = "Отправка /tx...\n" + JSON.stringify(dto, null, 2);
+
+            const resp = await fetch(RPC_BASE + "/tx", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(dto),
+            });
+
+            const text = await resp.text();
+            logEl.textContent = `status=${resp.status}\n${text}`;
+            if (resp.ok) {
+                log("POST /tx OK: " + text, "ok");
+            } else {
+                log("POST /tx FAILED: " + text, "err");
+            }
+        } catch (e) {
+            logEl.textContent = "Ошибка: " + e.message;
+        }
+    });
+
+    // Стартовое обновление и периодический поллинг статуса
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
 </script>
 </body>
 </html>

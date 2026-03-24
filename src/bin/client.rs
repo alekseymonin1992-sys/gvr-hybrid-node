@@ -123,7 +123,6 @@ struct PeersResponse {
 }
 
 // Оставляем только то, что реально выводим (addr),
-// чтобы не было предупреждений про неиспользуемые поля.
 #[derive(Debug, Deserialize)]
 struct PeerInfo {
     addr: String,
@@ -212,6 +211,13 @@ async fn cmd_send_tx(
         fee: st.fee,
     };
 
+    // >>> ДОБАВЛЕНО: отладочный вывод DTO
+    println!(
+        "DEBUG DTO for /tx:\n{}",
+        serde_json::to_string_pretty(&dto).unwrap()
+    );
+    // <<<
+
     let tx_url = format!("{}/tx", base_url);
     let resp = client
         .post(&tx_url)
@@ -262,6 +268,13 @@ async fn cmd_send_tx_raw(
         signature: st.signature.clone(),
         fee: st.fee,
     };
+
+    // >>> ДОБАВЛЕНО: отладочный вывод DTO
+    println!(
+        "DEBUG DTO for /tx (raw):\n{}",
+        serde_json::to_string_pretty(&dto).unwrap()
+    );
+    // <<<
 
     let tx_url = format!("{}/tx", base_url);
     let resp = client

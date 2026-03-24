@@ -1,6 +1,5 @@
 use chrono::Utc;
 use k256::ecdsa::{signature::Signer, SigningKey, VerifyingKey};
-// use k256::elliptic_curve::sec1::ToEncodedPoint;  // removed
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
@@ -15,7 +14,8 @@ fn add_block_accepts_valid() {
     let vk = VerifyingKey::from(&sk);
     let pubsec1 = vk.to_encoded_point(false).as_bytes().to_vec();
 
-    let mut bc = Blockchain::new_with_genesis(Some(pubsec1.clone()));
+    // ДОБАВЛЕН второй аргумент: адрес coinbase
+    let mut bc = Blockchain::new_with_genesis(Some(pubsec1.clone()), "alice".to_string());
 
     let mut ep = EnergyProof {
         producer_id: "pb1".to_string(),
@@ -43,7 +43,8 @@ fn replay_protection_blocks_replay() {
     let vk = VerifyingKey::from(&sk);
     let pubsec1 = vk.to_encoded_point(false).as_bytes().to_vec();
 
-    let mut bc = Blockchain::new_with_genesis(Some(pubsec1.clone()));
+    // ДОБАВЛЕН второй аргумент: адрес coinbase
+    let mut bc = Blockchain::new_with_genesis(Some(pubsec1.clone()), "alice".to_string());
 
     // Перемещаемся в Phase2, чтобы реплей‑защита сработала
     bc.total_supply = 1_500_000u64;

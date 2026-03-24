@@ -254,3 +254,90 @@ pub fn calculate_reward(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::emission::{EmissionPhase, current_phase};
+    use crate::constants::*;
+
+    #[test]
+    fn test_current_phase_boundaries() {
+        assert_eq!(current_phase(0), EmissionPhase::Phase1);
+        assert_eq!(current_phase(PHASE1_SUPPLY_LIMIT - 1), EmissionPhase::Phase1);
+        assert_eq!(current_phase(PHASE1_SUPPLY_LIMIT), EmissionPhase::Phase2);
+        assert_eq!(current_phase(PHASE2_SUPPLY_LIMIT - 1), EmissionPhase::Phase2);
+        assert_eq!(current_phase(PHASE2_SUPPLY_LIMIT), EmissionPhase::Phase3);
+        assert_eq!(current_phase(MAX_SUPPLY - 1), EmissionPhase::Phase3);
+    }
+
+    #[test]
+    fn test_phase1_reward() {
+        let cfg = EmissionConfig::default();
+
+        // где-то в середине Phase1
+        let total_supply = PHASE1_SUPPLY_LIMIT / 2;
+        let (reward, ts) = calculate_reward(
+            total_supply,
+            None,
+            None,
+            None,
+            &cfg,
+        ).expect("calc ok");
+
+        assert_eq!(reward, BASE_REWARD);
+        assert!(ts.is_none());
+    }
+
+    #[test]
+    fn test_phase2_pow_only_reward() {
+        let cfg = EmissionConfig::default();
+
+        // в Phase2, без EnergyProof
+        let total_supply = PHASE1_SUPPLY_LIMIT + 1000;
+        let (reward, ts) = calculate_reward(
+            total_supply,
+            None,
+            None,
+            None,
+            &cfg,
+        ).expect("calc ok");
+
+        assert_eq!(reward, BASE_REWARD / 2); // 25
+        assert!(ts.is_none());
+    }
+
+    #[test]
+    fn test_phase3_pow_only_reward() {
+        let cfg = EmissionConfig::default();
+
+        // в Phase3, без EnergyProof
+        let total_supply = PHASE2_SUPPLY_LIMIT + 1000;
+        let (reward, ts) = calculate_reward(
+            total_supply,
+            None,
+            None,
+            None,
+            &cfg,
+        ).expect("calc ok");
+
+        assert_eq!(reward, PHASE3_POW_REWARD); // 1
+        assert!(ts.is_none());
+    }
+
+    #[test]
+    fn test_max_supply_cap() {
+        let cfg = EmissionConfig::default();
+
+        // когда total_supply уже достиг MAX_SUPPLY — награда должна быть 0
+        let (reward, _ts) = calculate_reward(
+            MAX_SUPPLY,
+            None,
+            None,
+            None,
+            &cfg,
+        ).expect("calc ok");
+
+        assert_eq!(reward, 0);
+    }
+}

@@ -129,3 +129,75 @@ impl State {
         Ok(next)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transaction::Transaction;
+    use crate::accounts::{SignedTransfer};
+    use crate::constants::MIN_SIGNED_FEE;
+    use k256::ecdsa::{SigningKey};
+
+    fn make_signed_transfer(
+        sk: &SigningKey,
+        from: &str,
+        to: &str,
+        amount: u64,
+        fee: u64,
+        nonce: u64,
+    ) -> SignedTransfer {
+        use crate::accounts::sign_transfer;
+        sign_transfer(sk, from, to, amount, fee, nonce)
+    }
+
+    #[test]
+    fn test_signed_tx_fee_below_min_rejected() {
+        let mut state = State::new("alice".to_string());
+
+        // Дадим немного монет alice, чтобы не упереться в "insufficient funds"
+        state.credit("alice", 100);
+
+        // генерируем dev-ключ
+        let sk = SigningKey::from_bytes(&[1u8; 32]).expect("sk");
+
+        // fee < MIN_SIGNED_FEE
+        let st = make_signed_transfer(&sk, "alice", "bob", 10, MIN_SIGNED_FEE - 1, 0);
+        let tx = Transaction::Signed(st);
+
+        let res = state.apply_tx(&tx);
+        assert!(res.is_err());
+        let msg = res.err().unwrap();
+        assert!(
+            msg.contains("fee below minimum"),
+            "expected fee-below-min error, got: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_signed_tx_applies_balances_and_nonce() {
+        let mut state = State::new("alice".to_string());
+
+        // Изначально alice имеет 0, начислим немного
+        state.credit("alice", 100);
+
+        let sk = SigningKey::from_bytes(&[2u8; 32]).expect("sk");
+
+        let amount = 10;
+        let fee = MIN_SIGNED_FEE; // 1
+        let nonce = 0;
+
+        let st = make_signed_transfer(&sk, "alice", "bob", amount, fee, nonce);
+        let tx = Transaction::Signed(st);
+
+        let res = state.apply_tx(&tx);
+        assert!(res.is_ok());
+
+        // Проверяем итоговое состояние:
+        // с alice списали amount+fee, но fee вернулся на coinbase (alice),
+        // поэтому итоговый баланс = 100 - amount
+        assert_eq!(state.balance_of("alice"), 100 - amount);
+        assert_eq!(state.balance_of("bob"), amount);
+        assert_eq!(state.nonce_of("alice"), 1);
+    }
+}

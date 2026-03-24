@@ -17,6 +17,7 @@ use gvr_hybrid_node::mine;
 use gvr_hybrid_node::p2p;
 use gvr_hybrid_node::rpc;
 use gvr_hybrid_node::transaction::Transaction;
+use gvr_hybrid_node::energy::EnergyProof;
 
 const DEV_MINER_KEY_FILE: &str = "dev_key.bin";
 
@@ -207,6 +208,9 @@ fn main() {
     let blockchain: Arc<Mutex<Blockchain>> = Arc::new(Mutex::new(chain_state));
     let mempool: Arc<Mutex<Mempool>> = Arc::new(Mutex::new(Mempool::new()));
 
+    // общий слот для последнего внешнего EnergyProof (из RPC /energy_proof)
+    let last_energy_proof: Arc<Mutex<Option<EnergyProof>>> = Arc::new(Mutex::new(None));
+
     let peers_vec = parse_peers(&args.peers);
 
     // P2P server
@@ -225,7 +229,8 @@ fn main() {
         let bc_for_rpc = Arc::clone(&blockchain);
         let mp_for_rpc = Arc::clone(&mempool);
         let rpc_addr = args.rpc_addr.clone();
-        rpc::start_rpc(&rpc_addr, bc_for_rpc, mp_for_rpc);
+        let ep_for_rpc = Arc::clone(&last_energy_proof);
+        rpc::start_rpc(&rpc_addr, bc_for_rpc, mp_for_rpc, ep_for_rpc);
     }
 
     // Miner
@@ -234,13 +239,15 @@ fn main() {
         let miner_mempool: Arc<Mutex<Mempool>> = Arc::clone(&mempool);
         let ai_sk_clone = ai_sk_opt.clone();
         let peers_for_broadcast = peers_vec.clone();
+        let ep_for_miner = Arc::clone(&last_energy_proof);
 
         thread::spawn(move || loop {
-            // потокобезопасный майнер (без долгих локов)
-            let block = mine::mine_block_threadsafe(
+            // потокобезопасный майнер (без долгих локов) с поддержкой внешнего EnergyProof
+            let block = mine::mine_block_threadsafe_with_proof(
                 &miner_chain,
                 &miner_mempool,
                 ai_sk_clone.as_ref(),
+                &ep_for_miner,
             );
 
             {

@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::constants::SCALE;
+use crate::constants::{SCALE, MAX_KWH_PER_PROOF};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EnergyProof {
@@ -65,17 +65,28 @@ impl EnergyProof {
 
         let hash = self.hash_for_signing();
 
-        // Verify: VerifyingKey::verify accepts the message bytes and the Signature
         match vk.verify(&hash, &sig) {
             Ok(_) => Ok(true),
             Err(_) => Ok(false),
         }
     }
 
+    /// Строгая проверка полей EnergyProof.
+    /// Для боевой сети:
+    /// - kwh > 0 и <= MAX_KWH_PER_PROOF
+    /// - ai_score >= min_ai_score
+    /// - timestamp не слишком в будущем.
     pub fn validate_fields(&self, min_ai_score: f64) -> Result<(), String> {
         if !(self.kwh > 0.0) {
             return Err("kwh must be > 0".into());
         }
+        if self.kwh > MAX_KWH_PER_PROOF {
+            return Err(format!(
+                "kwh too large: got={} max={}",
+                self.kwh, MAX_KWH_PER_PROOF
+            ));
+        }
+
         if !(self.ai_score >= min_ai_score) {
             return Err("ai_score below minimum".into());
         }

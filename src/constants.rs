@@ -9,6 +9,9 @@ pub const TARGET_BLOCK_TIME_SEC: u64 = 90;
 pub const MIN_DIFFICULTY: u32 = 1;
 pub const MAX_DIFFICULTY: u32 = 32;
 
+// Максимальная глубина reorg (в блоках) — защита от очень глубоких форков
+pub const MAX_REORG_DEPTH: u64 = 100;
+
 // Минимальный объём энергии для учёта (если где‑то понадобится)
 pub const MIN_ENERGY_KWH: u64 = 20;
 
@@ -41,6 +44,14 @@ pub const BASE_GVR_PER_KWH_FP: u128 =
 
 // Допустимое расхождение по времени (ms) для EnergyProof
 pub const ALLOWED_TIMESTAMP_SKEW_MS: u128 = 5 * 60 * 1000;
+
+// Максимальный kWh в одном EnergyProof (анти-абуз).
+// Для боевой сети подставить реалистичный максимум (например, 10_000 MWh = 10_000_000 kWh).
+pub const MAX_KWH_PER_PROOF: f64 = 10_000_000.0;
+
+// Минимальный интервал между двумя EnergyProof одного producer (по времени proof'а), мс.
+// В боевой сети, например, 10 минут: один proof на станцию раз в 10 минут.
+pub const MIN_PROOF_INTERVAL_MS: u128 = 10 * 60 * 1000;
 
 // Persistence
 pub const SNAPSHOT_INTERVAL: usize = 10;

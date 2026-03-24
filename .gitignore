@@ -1,11 +1,13 @@
 # Build artifacts
 /target
+/dist
 
 # Node state
 state.json
 state.json.tmp
+node.log
 
-# Dev / AI keys
+# Dev / AI private keys
 dev_key.bin
 ai_key.bin
 ai_pubkey.bin

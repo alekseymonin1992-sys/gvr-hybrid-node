@@ -1,4 +1,3 @@
-```markdown
 # GVR Hybrid Node
 
 GVR — экспериментальная гибридная криптовалюта на Rust с трёхфазной экономикой:
@@ -91,29 +90,29 @@ target/release/gvr-node \
 ### 3.3. Создание кошелька
 
 ```bash
-target/release/gvr-wallet new --name alekseymonin1992
+target/release/gvr-wallet new --name alice
 ```
 
 Выведет:
 
-- путь к файлу приватного ключа (`wallets/alekseymonin1992.key`),
-- адрес в сети (строка `alekseymonin1992`),
+- путь к файлу приватного ключа (`wallets/alice.key`),
+- адрес в сети (строка `alice`),
 - публичный ключ в формате SEC1 (hex).
 
 Проверить кошелёк:
 
 ```bash
-target/release/gvr-wallet show --name alekseymonin1992
+target/release/gvr-wallet show --name alice
 ```
 
 ### 3.4. Отправка транзакции
 
-Перевести 10 GVR с кошелька `alekseymonin1992` на адрес `bob`:
+Перевести 10 GVR с кошелька `alice` на адрес `bob`:
 
 ```bash
 target/release/gvr-wallet send \
   --rpc 127.0.0.1:8080 \
-  --from_wallet alekseymonin1992 \
+  --from_wallet alice \
   --to bob \
   --amount 10 \
   --fee 1
@@ -121,7 +120,7 @@ target/release/gvr-wallet send \
 
 Кошелёк:
 
-- сам запросит `nonce` через `/nonce?addr=...`,
+- запросит `nonce` через `/nonce?addr=...`,
 - подпишет транзакцию ECDSA‑ключом,
 - отправит DTO в `/tx` на ноду.
 
@@ -219,4 +218,4 @@ curl http://127.0.0.1:8080/peers
 Для детальной информации:
 
 - протокол: [PROTO.md](PROTO.md),
-- экономика: 
+- экономика: [ECONOMY.md](ECONOMY.md).

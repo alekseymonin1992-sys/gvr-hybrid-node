@@ -46,8 +46,9 @@ fn replay_protection_blocks_replay() {
     // ДОБАВЛЕН второй аргумент: адрес coinbase
     let mut bc = Blockchain::new_with_genesis(Some(pubsec1.clone()), "alice".to_string());
 
-    // Перемещаемся в Phase2, чтобы реплей‑защита сработала
-    bc.total_supply = 1_500_000u64;
+    // Перемещаемся в Phase2 (PHASE1_SUPPLY_LIMIT = 9_000_000),
+    // чтобы реплей‑защита по EnergyProof сработала.
+    bc.total_supply = 9_000_000u64;
 
     let mut ep1 = EnergyProof {
         producer_id: "rp".to_string(),

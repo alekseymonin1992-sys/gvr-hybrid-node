@@ -73,6 +73,14 @@ impl Blockchain {
         self.tip_hash.clone()
     }
 
+    /// Добавление нового блока.
+    ///
+    /// ВАЖНО:
+    /// - Всегда сначала валидируем блок и вставляем его в индексы (blocks_by_hash, chainwork).
+    /// - Затем, если новая ветка даёт больше chainwork:
+    ///   * либо делаем reorg через `rebuild_main_chain_to`;
+    ///   * либо, если это простое продолжение tip’а, детерминированно применяем
+    ///     reward + tx к состоянию (state/total_supply/producer_state/chain).
     pub fn add_block(&mut self, mut block: Block) -> bool {
         let parent_hash = block.previous_hash.clone();
         if !self.blocks_by_hash.contains_key(&parent_hash) {
@@ -103,6 +111,7 @@ impl Blockchain {
             return false;
         }
 
+        // Если уже видели этот блок — считаем его принятым (idempotent).
         if self.blocks_by_hash.contains_key(&block.hash) {
             return true;
         }
@@ -135,12 +144,14 @@ impl Blockchain {
             }
         }
 
+        // Исторический last_seen_ts для данного producer (если он уже был в main‑chain)
         let last_seen_ts_opt: Option<u128> = block
             .energy_proof
             .as_ref()
             .and_then(|ep| self.producer_state.get(&ep.producer_id))
             .map(|ps| ps.last_ts);
 
+        // Расчёт награды по текущему total_supply и энергопруфу
         let cfg = EmissionConfig::default();
 
         let reward_and_ts = calculate_reward(
@@ -151,7 +162,7 @@ impl Blockchain {
             &cfg,
         );
 
-        let (reward, _last_ts_opt) = match reward_and_ts {
+        let (reward, last_ts_from_calc_opt) = match reward_and_ts {
             Ok((r, ts_opt)) => (r, ts_opt),
             Err(err_msg) => {
                 println!("Reject block: emission calc error: {}", err_msg);
@@ -169,6 +180,7 @@ impl Blockchain {
 
         let block_hash = block.hash.clone();
 
+        // Вставляем блок в индексы (он может стать частью альтернативной ветки)
         self.blocks_by_hash.insert(block_hash.clone(), block.clone());
         self.children
             .entry(parent_hash.clone())
@@ -182,6 +194,7 @@ impl Blockchain {
         let my_work = parent_work.saturating_add(block_work(&block));
         self.chainwork_by_hash.insert(block_hash.clone(), my_work);
 
+        // Сравниваем с текущим tip’ом по chainwork
         let current_tip_work = *self
             .chainwork_by_hash
             .get(&self.tip_hash)
@@ -191,6 +204,7 @@ impl Blockchain {
         let new_block_index = block.index;
 
         if my_work > current_tip_work {
+            // Возможная смена лучшей ветки
             if old_tip_index > new_block_index
                 && old_tip_index.saturating_sub(new_block_index) > MAX_REORG_DEPTH
             {
@@ -201,9 +215,66 @@ impl Blockchain {
                 return false;
             }
 
-            if let Err(e) = self.rebuild_main_chain_to(&block_hash) {
-                println!("Reorg error: {}", e);
-                return false;
+            // Если это НЕ прямое продолжение текущего tip’а — делаем полноценный reorg
+            if parent_hash != self.tip_hash {
+                if let Err(e) = self.rebuild_main_chain_to(&block_hash) {
+                    println!("Reorg error: {}", e);
+                    return false;
+                }
+            } else {
+                // Простое расширение текущей main‑chain:
+                //
+                // 1) Увеличиваем total_supply на reward
+                // 2) Начисляем reward на coinbase
+                // 3) Применяем txs к state (атомарно)
+                // 4) Обновляем producer_state по EnergyProof
+                // 5) Применяем RotateAIKey‑txs
+                // 6) Добавляем блок в chain
+                // 7) Обновляем tip_hash и, при необходимости, difficulty
+
+                if reward > 0 {
+                    self.total_supply = self.total_supply.saturating_add(reward);
+                    let coinbase = self.state.coinbase.clone();
+                    self.state.credit(&coinbase, reward);
+                }
+
+                // Применяем транзакции к состоянию
+                match self.state.apply_txs_atomic(&block.transactions) {
+                    Ok(next_state) => {
+                        self.state = next_state;
+                    }
+                    Err(e) => {
+                        println!(
+                            "Reject block: state transition error for block idx={} hash={}: {}",
+                            block.index, block.hash, e
+                        );
+                        // Откатывать индексы blocks_by_hash/children/chainwork не пробуем — в худшем случае этот
+                        // блок останется в альтернативной ветке, но не в main‑chain (chain).
+                        return false;
+                    }
+                }
+
+                // Обновление producer_state (если calculate_reward вернул timestamp)
+                if let (Some(ts), Some(ep)) = (last_ts_from_calc_opt, &block.energy_proof) {
+                    self.producer_state.insert(
+                        ep.producer_id.clone(),
+                        ProducerState {
+                            last_seq: ep.sequence,
+                            last_ts: ts,
+                        },
+                    );
+                }
+
+                // Применяем RotateAIKey‑txs
+                if let Err(e) = self.apply_rotate_ai_key_txs(&block) {
+                    println!("RotateAIKey error in block idx={}: {}", block.index, e);
+                    // Ошибка ротации не должна ломать весь блок, но логируем.
+                }
+
+                // Наконец, блок становится частью main‑chain
+                self.chain.push(block.clone());
+                self.tip_hash = block_hash.clone();
+                self.adjust_difficulty();
             }
         }
 
@@ -224,10 +295,6 @@ impl Blockchain {
                 block.index,
                 block.hash
             );
-        }
-
-        if let Err(e) = self.apply_rotate_ai_key_txs(&block) {
-            println!("RotateAIKey error in block idx={}: {}", block.index, e);
         }
 
         true
@@ -283,6 +350,7 @@ impl Blockchain {
         let mut path: Vec<String> = Vec::new();
         let mut cur = new_tip_hash.to_string();
 
+        // Строим путь от нового tip’а до генезиса
         loop {
             path.push(cur.clone());
             let b = self
@@ -301,6 +369,7 @@ impl Blockchain {
         let old_tip = self.tip_hash.clone();
         let old_height = self.chain.len();
 
+        // Очищаем main‑chain и состояние
         self.chain.clear();
         self.total_supply = 0;
         self.producer_state.clear();
@@ -308,6 +377,7 @@ impl Blockchain {
         let coinbase_addr = self.state.coinbase.clone();
         self.state = State::new(coinbase_addr);
 
+        // Пересобираем main‑chain по пути
         for h in &path {
             let mut b = self
                 .blocks_by_hash

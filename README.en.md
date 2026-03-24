@@ -1,4 +1,3 @@
-```markdown
 # GVR Hybrid Node
 
 GVR is an experimental hybrid cryptocurrency written in Rust with a three‑phase monetary policy:

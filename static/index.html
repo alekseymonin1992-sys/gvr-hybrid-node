@@ -208,11 +208,6 @@
             color: var(--accent-strong);
         }
 
-        .stat-value-soft {
-            color: var(--text-soft);
-            font-size: 13px;
-        }
-
         .stat-caption {
             font-size: 11px;
             color: var(--muted);
@@ -466,6 +461,7 @@
                     <span class="pill">GET <code>/status</code></span>
                     <span class="pill">GET <code>/balance?addr=...</code></span>
                     <span class="pill">GET <code>/nonce?addr=...</code></span>
+                    <span class="pill">GET <code>/mempool</code></span>
                     <span class="pill">POST <code>/tx</code></span>
                     <span class="pill">POST <code>/energy_proof</code></span>
                 </div>
@@ -490,6 +486,16 @@
                         <button class="btn" id="nonceBtn">Get nonce</button>
                     </div>
                     <div class="rpc-output empty" id="nonceOutput">No request yet.</div>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="card-section-title">Recent mempool txs</div>
+                <div class="rpc-form">
+                    <div class="rpc-row">
+                        <button class="btn" id="mempoolBtn">Refresh mempool</button>
+                    </div>
+                    <div class="rpc-output empty" id="mempoolOutput">No request yet.</div>
                 </div>
             </div>
 
@@ -630,9 +636,34 @@
         }
     }
 
+    async function queryMempool() {
+        const out = document.getElementById('mempoolOutput');
+        out.textContent = 'Requesting...';
+        out.classList.remove('empty');
+
+        try {
+            const { ok, json, raw } = await fetchJSON(rpcBase + '/mempool');
+            if (!ok || !json) {
+                out.textContent = 'Error: ' + raw;
+                return;
+            }
+
+            if (!json.txs || json.txs.length === 0) {
+                out.textContent = 'Mempool is empty.';
+                return;
+            }
+
+            const shown = json.txs.slice(0, 20);
+            out.textContent = JSON.stringify(shown, null, 2);
+        } catch (e) {
+            out.textContent = 'Error: ' + e;
+        }
+    }
+
     document.getElementById('refreshStatusBtn').addEventListener('click', refreshStatus);
     document.getElementById('addrBtn').addEventListener('click', queryBalance);
     document.getElementById('nonceBtn').addEventListener('click', queryNonce);
+    document.getElementById('mempoolBtn').addEventListener('click', queryMempool);
 
     // auto-load on first open
     refreshStatus();

@@ -96,6 +96,18 @@ struct P2pDebugInfo {
     banned_peers: usize,
 }
 
+/// DTO для /mempool
+#[derive(Debug, Serialize)]
+struct MempoolTx {
+    hash: String,
+    kind: String,
+}
+
+#[derive(Debug, Serialize)]
+struct MempoolResponse {
+    txs: Vec<MempoolTx>,
+}
+
 /// Запуск HTTP RPC-сервера на axum.
 pub fn start_rpc(
     bind_addr: &str,
@@ -138,6 +150,7 @@ pub fn start_rpc(
                 .route("/p2p_debug", get(handle_p2p_debug))
                 .route("/ui", get(handle_ui))
                 .route("/energy_proof", post(handle_energy_proof))
+                .route("/mempool", get(handle_mempool))
                 // Ограничиваем размер тела запросов, чтобы не положить ноду огромными JSON'ами
                 .layer(DefaultBodyLimit::max(16 * 1024)) // 16 KB
                 .with_state(state);
@@ -540,6 +553,29 @@ async fn handle_p2p_debug() -> Response {
     };
 
     (StatusCode::OK, Json(body)).into_response()
+}
+
+/// GET /mempool — список транзакций в локальном mempool
+async fn handle_mempool(State(st): State<RpcState>) -> Response {
+    let mp = st.mempool.lock().unwrap();
+
+    let mut out = Vec::new();
+    for (hash, tx) in mp.txs.iter() {
+        let kind = match tx {
+            Transaction::Transfer { .. } => "Transfer",
+            Transaction::RotateAIKey { .. } => "RotateAIKey",
+            Transaction::Signed(_) => "Signed",
+        }
+        .to_string();
+
+        out.push(MempoolTx {
+            hash: hash.clone(),
+            kind,
+        });
+    }
+
+    let resp = MempoolResponse { txs: out };
+    (StatusCode::OK, Json(resp)).into_response()
 }
 
 fn collect_peer_infos() -> Vec<PeerInfo> {

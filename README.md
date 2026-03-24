@@ -24,6 +24,16 @@ GVR — экспериментальная гибридная криптовал
 
 ---
 
+## Public testnet seed
+
+Авторская seed‑нода тестнета (может быть нестабильной):
+
+- `95.191.235.94:4000`
+
+Инструкция по подключению: [TESTNET_CONNECT.md](TESTNET_CONNECT.md).
+
+---
+
 ## 1. Возможности
 
 - Гибридный консенсус: PoW + EnergyProof.
@@ -78,7 +88,7 @@ target/release/gvr-ai-keygen
 
 ```bash
 target/release/gvr-node \
-  --p2p_addr 127.0.0.1:4000 \
+  --p2p_addr 0.0.0.0:4000 \
   --rpc_addr 127.0.0.1:8080 \
   --coinbase_addr alice \
   --ai-key-file ai_key.bin
@@ -120,7 +130,7 @@ target/release/gvr-wallet send \
 
 Кошелёк:
 
-- запросит `nonce` через `/nonce?addr=...`,
+- сам запросит `nonce` через `/nonce?addr=...`,
 - подпишет транзакцию ECDSA‑ключом,
 - отправит DTO в `/tx` на ноду.
 
@@ -157,7 +167,7 @@ target/release/gvr-energy-client \
 
 ```bash
 target/release/gvr-node \
-  --p2p_addr 127.0.0.1:4000 \
+  --p2p_addr 0.0.0.0:4000 \
   --rpc_addr 127.0.0.1:8080 \
   --coinbase_addr alice \
   --ai-key-file ai_key.bin
@@ -171,13 +181,13 @@ target/release/gvr-node \
   --rpc_addr 127.0.0.1:8081 \
   --coinbase_addr bob \
   --ai-pubkey-file ai_pubkey.bin \
-  --peers 127.0.0.1:4000
+  --peers 95.191.235.94:4000
 ```
 
 Синхронизация Ноды №2 с Нодой №1 через RPC:
 
 ```bash
-curl "http://127.0.0.1:8081/sync?peer=127.0.0.1:4000"
+curl "http://127.0.0.1:8081/sync?peer=95.191.235.94:4000"
 ```
 
 ### 4.3. Диагностика и статус

@@ -4,6 +4,7 @@
 
 # Node state
 state.json
+state*.json
 state.json.tmp
 node.log
 

@@ -1,357 +1,641 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <title>GVR Hybrid Node UI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
+        :root {
+            --bg: #05060a;
+            --bg-card: #10121b;
+            --bg-card-soft: #151828;
+            --accent: #4ade80;
+            --accent-soft: rgba(74, 222, 128, 0.15);
+            --accent-strong: #22c55e;
+            --text: #e5e7eb;
+            --text-soft: #9ca3af;
+            --border: #1f2933;
+            --danger: #f97373;
+            --muted: #4b5563;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #0b1020;
-            color: #f5f5f5;
             margin: 0;
             padding: 0;
+            background: radial-gradient(circle at top, #111827 0, #020617 45%, #020617 100%);
+            color: var(--text);
+            font-family: var(--font);
         }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .page {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 32px 16px 48px;
+        }
+
         header {
-            background: #141a33;
-            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            background: radial-gradient(circle at 30% 20%, #4ade80 0, #16a34a 35%, #111827 100%);
+            box-shadow: 0 0 24px rgba(74, 222, 128, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 18px;
+            color: #ecfdf3;
+        }
+
+        .brand-title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .brand-title-main {
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            font-size: 20px;
+        }
+
+        .brand-title-sub {
+            font-size: 13px;
+            color: var(--text-soft);
+        }
+
+        .header-links {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .tag {
+            font-size: 11px;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.16);
+            color: var(--text-soft);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .tag-accent {
+            background: rgba(74, 222, 128, 0.2);
+            border-color: rgba(74, 222, 128, 0.7);
+            color: var(--accent-strong);
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+            gap: 18px;
+        }
+
+        @media (max-width: 900px) {
+            main {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .card {
+            background: radial-gradient(circle at top left, rgba(36, 99, 235, 0.06), transparent 55%),
+                        radial-gradient(circle at bottom right, rgba(74, 222, 128, 0.08), transparent 55%),
+                        var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 16px 18px 18px;
+            box-shadow:
+                0 18px 35px rgba(15, 23, 42, 0.85),
+                inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+        }
+
+        .card-soft {
+            background: var(--bg-card-soft);
+        }
+
+        .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #232a45;
+            gap: 8px;
+            margin-bottom: 10px;
         }
-        header h1 {
-            margin: 0;
-            font-size: 18px;
-        }
-        header span {
-            font-size: 12px;
-            color: #9ea6c4;
-        }
-        main {
-            padding: 16px 20px 32px;
-            max-width: 1040px;
-            margin: 0 auto;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 2fr 1.4fr;
-            gap: 16px;
-        }
-        .card {
-            background: #141a33;
-            border-radius: 8px;
-            padding: 14px 16px;
-            border: 1px solid #232a45;
-        }
-        .card h2 {
-            margin: 0 0 10px;
+
+        .card-title {
             font-size: 15px;
-            color: #d8e0ff;
+            font-weight: 600;
         }
-        .row {
-            display: flex;
-            justify-content: space-between;
-            margin: 4px 0;
+
+        .card-subtitle {
+            font-size: 12px;
+            color: var(--text-soft);
+        }
+
+        .card-section {
+            margin-top: 12px;
+        }
+
+        .card-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .status-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+
+        .stat {
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(31, 41, 55, 0.9);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-soft);
+            margin-bottom: 3px;
+        }
+
+        .stat-value {
             font-size: 14px;
+            font-weight: 600;
         }
-        .row span.label {
-            color: #9ea6c4;
+
+        .stat-value-accent {
+            color: var(--accent-strong);
         }
-        .row span.value {
-            font-weight: 500;
-        }
-        .small {
-            font-size: 12px;
-            color: #8087a5;
-        }
-        input[type="text"],
-        input[type="number"] {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 6px 8px;
-            margin: 4px 0 8px;
-            border-radius: 4px;
-            border: 1px solid #323a5a;
-            background: #0b1020;
-            color: #f5f5f5;
+
+        .stat-value-soft {
+            color: var(--text-soft);
             font-size: 13px;
         }
-        label {
-            font-size: 12px;
-            color: #9ea6c4;
+
+        .stat-caption {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 2px;
         }
-        button {
+
+        .links-list {
+            list-style: none;
+            padding: 0;
+            margin: 4px 0 0;
+            font-size: 13px;
+        }
+
+        .links-list li {
+            margin: 4px 0;
+        }
+
+        .links-list a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .links-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(31, 41, 55, 0.9);
+            color: var(--text-soft);
+        }
+
+        .endpoint {
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 6px;
+            background: #020617;
+            border: 1px solid #0f172a;
+            display: inline-block;
+            color: #e5e7eb;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
             padding: 6px 10px;
-            border-radius: 4px;
-            border: none;
-            background: #2962ff;
-            color: white;
-            font-size: 13px;
+            border-radius: 999px;
+            border: 1px solid rgba(55, 65, 81, 0.9);
+            background: rgba(15, 23, 42, 0.96);
+            color: var(--text);
+            font-size: 12px;
             cursor: pointer;
         }
-        button:hover {
-            background: #1748c7;
+
+        .btn-primary {
+            border-color: rgba(74, 222, 128, 0.9);
+            background: linear-gradient(90deg, rgba(74, 222, 128, 0.15), rgba(34, 197, 94, 0.25));
+            box-shadow: 0 0 16px rgba(34, 197, 94, 0.45);
         }
-        pre {
-            background: #0b1020;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            max-height: 220px;
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .rpc-form {
+            margin-top: 8px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .rpc-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .rpc-row input {
+            flex: 1;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(31, 41, 55, 0.9);
+            background: #020617;
+            color: var(--text);
+            font-size: 12px;
+            font-family: var(--font);
+        }
+
+        .rpc-row input:focus {
+            outline: none;
+            border-color: rgba(74, 222, 128, 0.8);
+            box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.4);
+        }
+
+        .rpc-row .btn {
+            white-space: nowrap;
+        }
+
+        .rpc-output {
+            margin-top: 6px;
+            max-height: 140px;
             overflow: auto;
-        }
-        .muted {
-            color: #8087a5;
-        }
-        .ok {
-            color: #8bc34a;
-        }
-        .err {
-            color: #ff7043;
-        }
-        code {
-            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             font-size: 11px;
+            background: #020617;
+            border-radius: 8px;
+            padding: 7px 8px;
+            border: 1px solid #0f172a;
+            color: #e5e7eb;
         }
-        @media (max-width: 900px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
+
+        .rpc-output.empty {
+            color: var(--muted);
+        }
+
+        .pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 6px;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            border: 1px solid rgba(31, 41, 55, 0.9);
+            background: rgba(15, 23, 42, 0.95);
+            color: var(--text-soft);
+        }
+
+        footer {
+            margin-top: 20px;
+            font-size: 11px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        footer a {
+            color: var(--text-soft);
+        }
+
+        code {
+            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
     </style>
 </head>
 <body>
-<header>
-    <div>
-        <h1>GVR Hybrid Node</h1>
-        <span id="node-info" class="small">RPC: <code id="rpc-url"></code></span>
-    </div>
-    <div class="small">
-        <span id="last-upd" class="muted">обновление...</span>
-    </div>
-</header>
-<main>
-    <div class="grid">
-        <!-- Статус сети -->
-        <div class="card">
-            <h2>Статус сети</h2>
-            <div class="row"><span class="label">Высота:</span><span class="value" id="height">-</span></div>
-            <div class="row"><span class="label">Tip:</span><span class="value" id="tip" style="font-size:11px;word-break:break-all;">-</span></div>
-            <div class="row"><span class="label">Сложность:</span><span class="value" id="difficulty">-</span></div>
-            <div class="row"><span class="label">Total supply:</span><span class="value" id="total_supply">-</span></div>
-            <div class="row"><span class="label">Фаза эмиссии:</span><span class="value" id="phase">-</span></div>
-            <div class="row"><span class="label">alice:</span><span class="value" id="alice_balance">-</span></div>
-            <div class="row"><span class="label">bob:</span><span class="value" id="bob_balance">-</span></div>
-            <div class="row"><span class="label">alice nonce:</span><span class="value" id="alice_nonce">-</span></div>
-        </div>
-
-        <!-- Баланс адреса -->
-        <div class="card">
-            <h2>Баланс адреса</h2>
-            <div class="small muted">Введите адрес (строка state, например <code>vasya</code>, <code>alice</code>, <code>bob</code>).</div>
-            <input type="text" id="addr-input" placeholder="addr (например, vasya)" />
-            <button id="btn-balance">Показать баланс</button>
-            <div class="row" style="margin-top:10px;">
-                <span class="label">Баланс:</span><span class="value" id="addr-balance-value">-</span>
+<div class="page">
+    <header>
+        <div class="brand">
+            <div class="brand-logo">G</div>
+            <div class="brand-title">
+                <div class="brand-title-main">GVR Hybrid Node</div>
+                <div class="brand-title-sub">Hybrid PoW + EnergyProof cryptocurrency in Rust</div>
             </div>
-            <div class="small muted" id="addr-balance-status"></div>
         </div>
-    </div>
-
-    <!-- Форма для ручного POST /tx -->
-    <div class="card" style="margin-top:16px;">
-        <h2>Отправка Signed Tx (raw POST /tx)</h2>
-        <div class="small muted" style="margin-bottom:6px;">
-            Внимание: эта форма отправляет <code>SignedTransferDto</code> напрямую в ноду.<br/>
-            Подпись <strong>должна быть уже корректной</strong> (сформирована кошельком/клиентом).
+        <div class="header-links">
+            <span class="tag tag-accent">Draft / Experimental</span>
+            <span class="tag">Phase1 / Phase2 / Phase3</span>
         </div>
+    </header>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div>
-                <label>From (addr):</label>
-                <input id="tx-from" type="text" value="alice">
-
-                <label>To (addr):</label>
-                <input id="tx-to" type="text" value="bob">
-
-                <label>Amount (u64):</label>
-                <input id="tx-amount" type="number" value="10">
-
-                <label>Fee (u64):</label>
-                <input id="tx-fee" type="number" value="1">
-
-                <label>Nonce (u64):</label>
-                <input id="tx-nonce" type="number" value="0">
+    <main>
+        <!-- LEFT COLUMN: STATUS + DOCS -->
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Node status</div>
+                    <div class="card-subtitle">Live data from <code>/status</code></div>
+                </div>
+                <button class="btn btn-primary" id="refreshStatusBtn">Refresh</button>
             </div>
-            <div>
-                <label>pubkey_sec1 (hex, uncompressed):</label>
-                <input id="tx-pubkey-hex" type="text" placeholder="04... (SEC1 uncompressed)">
 
-                <label>signature DER (hex):</label>
-                <input id="tx-sig-hex" type="text" placeholder="30... (DER ECDSA)" />
-
-                <div class="small muted" style="margin-top:4px;">
-                    Формат JSON, который формируется:<br/>
-                    <code>{ "from", "to", "amount", "fee", "nonce", "pubkey_sec1": [..], "signature": [..] }</code>
+            <div class="status-grid" id="statusGrid">
+                <div class="stat">
+                    <div class="stat-label">Height</div>
+                    <div class="stat-value" id="stHeight">–</div>
+                    <div class="stat-caption">Current best chain height</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Total supply</div>
+                    <div class="stat-value stat-value-accent" id="stSupply">–</div>
+                    <div class="stat-caption">GVR issued so far</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Difficulty</div>
+                    <div class="stat-value" id="stDiff">–</div>
+                    <div class="stat-caption">Current PoW difficulty</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Emission phase</div>
+                    <div class="stat-value" id="stPhase">–</div>
+                    <div class="stat-caption">Phase1 / Phase2 / Phase3</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">alice balance</div>
+                    <div class="stat-value" id="stAliceBal">–</div>
+                    <div class="stat-caption">Example account</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">bob balance</div>
+                    <div class="stat-value" id="stBobBal">–</div>
+                    <div class="stat-caption">Example account</div>
                 </div>
             </div>
-        </div>
 
-        <div style="margin-top:10px;">
-            <button id="tx-send-btn">POST /tx</button>
-        </div>
-        <pre id="tx-send-log" style="margin-top:8px;"></pre>
-    </div>
+            <div class="card-section">
+                <div class="card-section-title">Docs</div>
+                <ul class="links-list">
+                    <li>
+                        <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node/blob/main/PROTO.md" target="_blank">
+                            <span>Protocol specification</span>
+                            <span class="links-badge">PROTO.md</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node/blob/main/ECONOMY.md" target="_blank">
+                            <span>Economy / tokenomics</span>
+                            <span class="links-badge">ECONOMY.md</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node" target="_blank">
+                            <span>GitHub repository</span>
+                            <span class="links-badge">source</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </section>
 
-    <!-- Лог RPC-запросов -->
-    <div class="card" style="margin-top:16px;">
-        <h2>RPC отладка</h2>
-        <div class="small muted" style="margin-bottom:6px;">
-            Ответы последних запросов к RPC-ноде (/status, /balance, /tx).
-        </div>
-        <pre id="log"></pre>
-    </div>
-</main>
+        <!-- RIGHT COLUMN: SIMPLE RPC TOOLS -->
+        <section class="card card-soft">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Quick RPC tools</div>
+                    <div class="card-subtitle">Helpers for local testing</div>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="card-section-title">RPC endpoint</div>
+                <div>
+                    <code id="rpcBase">http://127.0.0.1:8080</code>
+                </div>
+                <div class="pill-row">
+                    <span class="pill">GET <code>/status</code></span>
+                    <span class="pill">GET <code>/balance?addr=...</code></span>
+                    <span class="pill">GET <code>/nonce?addr=...</code></span>
+                    <span class="pill">POST <code>/tx</code></span>
+                    <span class="pill">POST <code>/energy_proof</code></span>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="card-section-title">Address balance</div>
+                <div class="rpc-form">
+                    <div class="rpc-row">
+                        <input id="addrInput" type="text" value="alice" />
+                        <button class="btn" id="addrBtn">Get balance</button>
+                    </div>
+                    <div class="rpc-output empty" id="addrOutput">No request yet.</div>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="card-section-title">Nonce</div>
+                <div class="rpc-form">
+                    <div class="rpc-row">
+                        <input id="nonceInput" type="text" value="alice" />
+                        <button class="btn" id="nonceBtn">Get nonce</button>
+                    </div>
+                    <div class="rpc-output empty" id="nonceOutput">No request yet.</div>
+                </div>
+            </div>
+
+            <div class="card-section">
+                <div class="card-section-title">Notes</div>
+                <p style="font-size:12px;color:var(--text-soft);margin:4px 0 0;">
+                    This UI is only a thin wrapper over the HTTP RPC API of a single local node.
+                    For full details of the consensus rules and economy, please refer to
+                    <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node/blob/main/PROTO.md" target="_blank">PROTO.md</a>
+                    and
+                    <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node/blob/main/ECONOMY.md" target="_blank">ECONOMY.md</a>.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        GVR Hybrid Node · Experimental network ·
+        <a href="https://github.com/alekseymonin1992-sys/gvr-hybrid-node" target="_blank">GitHub</a>
+    </footer>
+</div>
 
 <script>
-    const RPC_BASE = window.location.origin; // http://127.0.0.1:8080
+    const rpcBase = 'http://127.0.0.1:8080';
 
-    document.getElementById("rpc-url").textContent = RPC_BASE;
-
-    function log(msg, type = "info") {
-        const el = document.getElementById("log");
-        const prefix = type === "err" ? "[ERR] " : type === "ok" ? "[OK] " : "[*] ";
-        const time = new Date().toLocaleTimeString();
-        el.textContent = `${prefix}${time} ${msg}\n` + el.textContent;
-    }
-
-    function hexToBytes(hex) {
-        hex = hex.trim();
-        if (hex.startsWith("0x") || hex.startsWith("0X")) {
-            hex = hex.slice(2);
-        }
-        if (hex.length === 0) return [];
-        if (hex.length % 2 !== 0) {
-            throw new Error("Нечётная длина hex-строки");
-        }
-        const out = [];
-        for (let i = 0; i < hex.length; i += 2) {
-            const byte = parseInt(hex.slice(i, i + 2), 16);
-            if (Number.isNaN(byte)) {
-                throw new Error("Некорректный hex в позиции " + i);
-            }
-            out.push(byte);
-        }
-        return out;
-    }
-
-    async function fetchStatus() {
+    async function fetchJSON(url, options) {
+        const res = await fetch(url, options);
+        const text = await res.text();
         try {
-            const resp = await fetch(RPC_BASE + "/status");
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const data = await resp.json();
-
-            document.getElementById("height").textContent = data.height;
-            document.getElementById("tip").textContent = data.tip;
-            document.getElementById("difficulty").textContent = data.difficulty;
-            document.getElementById("total_supply").textContent = data.total_supply;
-            document.getElementById("phase").textContent = data.phase;
-            document.getElementById("alice_balance").textContent = data.alice_balance;
-            document.getElementById("bob_balance").textContent = data.bob_balance;
-            document.getElementById("alice_nonce").textContent = data.alice_nonce;
-
-            const upd = document.getElementById("last-upd");
-            upd.textContent = "обновлено: " + new Date().toLocaleTimeString();
-            upd.className = "small ok";
-
-            log("GET /status OK height=" + data.height + " total_supply=" + data.total_supply, "ok");
+            return { ok: res.ok, status: res.status, json: JSON.parse(text), raw: text };
         } catch (e) {
-            const upd = document.getElementById("last-upd");
-            upd.textContent = "ошибка обновления: " + e.message;
-            upd.className = "small err";
-            log("GET /status failed: " + e.message, "err");
+            return { ok: res.ok, status: res.status, json: null, raw: text };
         }
     }
 
-    async function fetchBalance(addr) {
-        if (!addr) {
-            document.getElementById("addr-balance-value").textContent = "-";
-            document.getElementById("addr-balance-status").textContent = "введите адрес";
+    async function refreshStatus() {
+        const btn = document.getElementById('refreshStatusBtn');
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+
+        try {
+            const { ok, json, raw } = await fetchJSON(rpcBase + '/status');
+            if (!ok || !json) {
+                console.warn('Status error:', raw);
+                updateStatusUI(null);
+            } else {
+                updateStatusUI(json);
+            }
+        } catch (e) {
+            console.error(e);
+            updateStatusUI(null);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Refresh';
+        }
+    }
+
+    function fmt(num) {
+        if (num === null || num === undefined) return '–';
+        if (typeof num === 'number') {
+            if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + 'B';
+            if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
+            if (num >= 1_000) return (num / 1_000).toFixed(2) + 'K';
+        }
+        return String(num);
+    }
+
+    function updateStatusUI(data) {
+        const set = (id, value) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = value;
+        };
+
+        if (!data) {
+            set('stHeight', '–');
+            set('stSupply', '–');
+            set('stDiff', '–');
+            set('stPhase', '–');
+            set('stAliceBal', '–');
+            set('stBobBal', '–');
             return;
         }
+
+        set('stHeight', fmt(data.height));
+        set('stSupply', fmt(data.total_supply));
+        set('stDiff', fmt(data.difficulty));
+        set('stPhase', data.phase || '–');
+        set('stAliceBal', fmt(data.alice_balance));
+        set('stBobBal', fmt(data.bob_balance));
+    }
+
+    async function queryBalance() {
+        const addr = document.getElementById('addrInput').value.trim();
+        const out = document.getElementById('addrOutput');
+        if (!addr) {
+            out.textContent = 'Address is empty.';
+            out.classList.remove('empty');
+            return;
+        }
+
+        out.textContent = 'Requesting...';
+        out.classList.remove('empty');
+
         try {
-            const resp = await fetch(RPC_BASE + "/balance?addr=" + encodeURIComponent(addr));
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
-            const data = await resp.json();
-            document.getElementById("addr-balance-value").textContent = data.balance;
-            const st = document.getElementById("addr-balance-status");
-            st.textContent = "OK: баланс загружен";
-            st.className = "small ok";
-            log(`GET /balance?addr=${addr} OK balance=${data.balance}`, "ok");
+            const { ok, json, raw } = await fetchJSON(rpcBase + '/balance?addr=' + encodeURIComponent(addr));
+            if (!ok || !json) {
+                out.textContent = 'Error: ' + raw;
+                return;
+            }
+            out.textContent = JSON.stringify(json, null, 2);
         } catch (e) {
-            const st = document.getElementById("addr-balance-status");
-            st.textContent = "ошибка: " + e.message;
-            st.className = "small err";
-            log("GET /balance failed: " + e.message, "err");
+            out.textContent = 'Error: ' + e;
         }
     }
 
-    document.getElementById("btn-balance").addEventListener("click", () => {
-        const addr = document.getElementById("addr-input").value.trim();
-        fetchBalance(addr);
-    });
-
-    document.getElementById("addr-input").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            const addr = document.getElementById("addr-input").value.trim();
-            fetchBalance(addr);
+    async function queryNonce() {
+        const addr = document.getElementById('nonceInput').value.trim();
+        const out = document.getElementById('nonceOutput');
+        if (!addr) {
+            out.textContent = 'Address is empty.';
+            out.classList.remove('empty');
+            return;
         }
-    });
 
-    document.getElementById("tx-send-btn").addEventListener("click", async () => {
-        const from   = document.getElementById("tx-from").value.trim();
-        const to     = document.getElementById("tx-to").value.trim();
-        const amount = Number(document.getElementById("tx-amount").value);
-        const fee    = Number(document.getElementById("tx-fee").value);
-        const nonce  = Number(document.getElementById("tx-nonce").value);
-        const pubHex = document.getElementById("tx-pubkey-hex").value.trim();
-        const sigHex = document.getElementById("tx-sig-hex").value.trim();
-        const logEl  = document.getElementById("tx-send-log");
+        out.textContent = 'Requesting...';
+        out.classList.remove('empty');
 
         try {
-            const dto = {
-                from,
-                to,
-                amount,
-                fee,
-                nonce,
-                pubkey_sec1: hexToBytes(pubHex),
-                signature:   hexToBytes(sigHex),
-            };
-
-            logEl.textContent = "Отправка /tx...\n" + JSON.stringify(dto, null, 2);
-
-            const resp = await fetch(RPC_BASE + "/tx", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify(dto),
-            });
-
-            const text = await resp.text();
-            logEl.textContent = `status=${resp.status}\n${text}`;
-            if (resp.ok) {
-                log("POST /tx OK: " + text, "ok");
-            } else {
-                log("POST /tx FAILED: " + text, "err");
+            const { ok, json, raw } = await fetchJSON(rpcBase + '/nonce?addr=' + encodeURIComponent(addr));
+            if (!ok || !json) {
+                out.textContent = 'Error: ' + raw;
+                return;
             }
+            out.textContent = JSON.stringify(json, null, 2);
         } catch (e) {
-            logEl.textContent = "Ошибка: " + e.message;
+            out.textContent = 'Error: ' + e;
         }
-    });
+    }
 
-    // Стартовое обновление и периодический поллинг статуса
-    fetchStatus();
-    setInterval(fetchStatus, 5000);
+    document.getElementById('refreshStatusBtn').addEventListener('click', refreshStatus);
+    document.getElementById('addrBtn').addEventListener('click', queryBalance);
+    document.getElementById('nonceBtn').addEventListener('click', queryNonce);
+
+    // auto-load on first open
+    refreshStatus();
 </script>
 </body>
 </html>
